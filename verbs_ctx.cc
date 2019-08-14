@@ -32,11 +32,11 @@
 
 #include "verbs_ctx.h"
 
-VerbCtx *VerbCtx::instance = NULL;
-bool VerbCtx::safeFlag = false;
-std::mutex VerbCtx::iniMtx;
+VerbCtx *VerbCtx::instance = NULL; // TODO: Consider moving this variable into the class and make it static and private.
+bool VerbCtx::safeFlag = false; // TODO: Consider moving this variable into the class and make it static and private.
+std::mutex VerbCtx::iniMtx; // TODO: Consider moving this variable into the class and make it static and private.
 
-int VerbCtx::ref = 0;
+int VerbCtx::ref = 0; // TODO: Consider moving this variable into the class and make it static and private.
 
 VerbCtx *VerbCtx::getInstance() {
   iniMtx.lock();

@@ -33,7 +33,7 @@ public:
 
   void finish();
 
-  ManagementQp *mqp;
+  ManagementQp *mqp; // mqp stands for "Managment Queue Pair"
 
   VerbCtx *ctx;
   InsQueue iq;

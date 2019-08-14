@@ -31,23 +31,22 @@
  */
 #pragma once
 
-#define DEBUGX
-#define VALIDITY_CHECKX
-#define HANG_REPORTX
-
-//#include <config.h>
-
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <mutex>
+
 extern "C" {
 #include <infiniband/mlx5dv.h>
 }
 
 #include <infiniband/verbs_exp.h>
-#include <mutex>
+
+#define DEBUGX
+#define VALIDITY_CHECKX
+#define HANG_REPORTX
 
 #define GID_INDEX 3
 
@@ -84,12 +83,12 @@ extern "C" {
 #define PRINTF(f_, ...)
 #endif
 
-#define RX_SIZE 16
-#define CX_SIZE 16
+//#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
+#define CX_SIZE 16 // TODO: Should be removed
 
 class VerbCtx {
 private:
-  VerbCtx();
+  VerbCtx(); // TODO: Need to make this public and use some way of allocating only a single instance. The function "getInstance" is redandent
   static VerbCtx *instance;
   static int ref;
   static bool safeFlag;
@@ -121,6 +120,6 @@ typedef struct peer_addr {
 int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr);
 int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp);
 
+// Debug functions
 void print_values(volatile float *buf, int count);
-
 void print_buffer(volatile void *buf, int count);

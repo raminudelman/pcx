@@ -220,7 +220,6 @@ struct ibv_mr *register_umr(Iov &iov, VerbCtx *ctx) {
   }
 
   /* Post WR and wait for it to complete */
-
   if (int res = ibv_exp_post_send(ctx->umr_qp, &wr, &bad_wr)) {
     RES_ERR(UMR_PostFailed, res);
   }

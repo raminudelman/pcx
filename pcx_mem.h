@@ -31,22 +31,19 @@
  */
 #pragma once
 
-//#include <config.h>
-
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <vector>
+
 extern "C" {
 #include <infiniband/mlx5dv.h>
 }
-
-#include "verbs_ctx.h"
-
 #include <infiniband/verbs_exp.h>
 
-#include <vector>
+#include "verbs_ctx.h"
 
 enum PCX_MEMORY_TYPE {
   PCX_MEMORY_TYPE_HOST,
@@ -56,6 +53,7 @@ enum PCX_MEMORY_TYPE {
   PCX_MEMORY_TYPE_USER,
 };
 
+// Network Memory
 class NetMem {
 public:
   NetMem(){};
@@ -68,8 +66,11 @@ public:
   };
 
 protected:
+  // Scatter-Gather Element
   struct ibv_sge sge;
-  struct ibv_mr *mr;
+
+  // Memory Region 
+  struct ibv_mr *mr; 
 };
 
 typedef std::vector<NetMem *> Iov;
@@ -77,6 +78,7 @@ typedef Iov::iterator Iovit;
 
 void freeIov(Iov &iov);
 
+// Host Memory
 class HostMem : public NetMem {
 public:
   HostMem(size_t length, VerbCtx *ctx);
@@ -88,10 +90,10 @@ private:
 
 class Memic : public NetMem {
   /*
-  This is CX-5 device memory mapped to the host memory.
-  Using this memory is about 200ns faster than using host memory.
-  So it should reduce latency in around 0.2us per, step.
-  */
+   * This is ConnectX-5 device memory mapped to the host memory.
+   * Using this memory is about 200ns faster than using host memory.
+   * So it should reduce latency in around 0.2us per step.
+   */
 public:
   Memic(size_t length, VerbCtx *ctx);
   ~Memic();
@@ -153,7 +155,7 @@ private:
   size_t cur;
 };
 
+// TODO: Should be moved to pcx_all_reduce_ring.h and should be there within a class
 typedef std::vector<PipeMem *> Iop;
 typedef Iop::iterator Iopit;
-
 void freeIop(Iop &iop);
