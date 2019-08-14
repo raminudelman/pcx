@@ -85,24 +85,29 @@ VerbCtx::VerbCtx() {
     throw "ERROR - verb context initiated twice!";
   }
 
-  fprintf(stderr, "Version: %s \n", __TIME__);
+  fprintf(stderr, "VerbCtx C'tor: Current Time: %s \n", __TIME__);
 
   safeFlag = true;
 
   const char *ib_devname = std::getenv("PCX_DEVICE");
 
-  int n;
-  struct ibv_device **dev_list = ibv_get_device_list(&n);
+  int number_of_ib_devices;
+  struct ibv_device **dev_list = ibv_get_device_list(&number_of_ib_devices);
   struct ibv_device *ib_dev;
   if (!dev_list) {
     throw("Failed to get IB devices list");
   }
 
+  for (int i = 0; i<number_of_ib_devices; i++) {
+      fprintf(stderr, "Available device #%d: %s.\n", i, ibv_get_device_name(dev_list[i]));  
+  }
+
   if (!ib_devname) {
-    ib_dev = dev_list[2];
+    ib_dev = dev_list[0]; // Get the first available device // TODO: Need to fix this?
     if (!ib_dev) {
       throw("No IB devices found");
     }
+    fprintf(stderr, "Will use first available IB device: %s \n", ibv_get_device_name(ib_dev));
   } else {
     int i;
     for (i = 0; dev_list[i]; ++i)
@@ -114,11 +119,13 @@ VerbCtx::VerbCtx() {
     }
   }
 
+  fprintf(stderr, "Using IB device: %s \n", ibv_get_device_name(ib_dev));
+
   PRINT(ibv_get_device_name(ib_dev));
   this->context = ibv_open_device(ib_dev);
   ibv_free_device_list(dev_list);
   if (!this->context) {
-    throw "Couldn't get context";
+    throw "Couldn't get context (failed to open an IB device)";
   }
 
   this->pd = ibv_alloc_pd(this->context);
