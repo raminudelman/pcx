@@ -54,7 +54,7 @@ enum PCX_MEMORY_TYPE {
 };
 
 // Network Memory
-class NetMem {
+class NetMem { // TODO: Change class name to "PcxMem" or "PcxBaseMem"
 public:
   NetMem(){};
   virtual ~NetMem() = 0;
@@ -76,7 +76,7 @@ protected:
 typedef std::vector<NetMem *> Iov;
 typedef Iov::iterator Iovit;
 
-void freeIov(Iov &iov);
+void freeIov(Iov &iov); // TODO: Used only in pcx_all_reduce_king/ring.h. Need to remove it from here! this should not be in the API of PCX mem!
 
 // Host Memory
 class HostMem : public NetMem {

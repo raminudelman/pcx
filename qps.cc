@@ -306,10 +306,10 @@ RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
   uint32_t rightRank = (myRank + 1) % commSize;
   uint32_t leftRank = (myRank - 1 + commSize) % commSize;
 
-  if (myRank % 2) {
+  if (myRank % 2) { // Odd rank
     this->right = new RingQp(cgraph, func, comm, rightRank, tag1, incoming);
     this->left = new RingQp(cgraph, func, comm, leftRank, tag2, incoming);
-  } else {
+  } else { // Even rank
     this->left = new RingQp(cgraph, func, comm, leftRank, tag1, incoming);
     this->right = new RingQp(cgraph, func, comm, rightRank, tag2, incoming);
   }

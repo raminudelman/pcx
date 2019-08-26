@@ -42,6 +42,7 @@ extern "C" {
 #include <infiniband/mlx5dv.h>
 }
 
+// Needed for creating QPs that support Cross-Channel (CORE-Direct).
 #include <infiniband/verbs_exp.h>
 
 #define VALIDITY_CHECKX

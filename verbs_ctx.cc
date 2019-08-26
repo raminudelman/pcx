@@ -199,16 +199,16 @@ VerbCtx::VerbCtx() {
 
   return; // SUCCESS!
 
-clean_qp:
+clean_qp: // TODO: Check if never used. If not used - delete!
   ibv_destroy_qp(this->umr_qp);
 
-clean_cq:
+clean_cq: // TODO: Check if never used. If not used - delete!
   ibv_destroy_cq(this->umr_cq);
 
-clean_mr:
+clean_mr: // TODO: Check if never used. If not used - delete!
   ibv_dealloc_pd(this->pd);
 
-clean_comp_channel:
+clean_comp_channel: // TODO: Check if never used. If not used - delete!
   ibv_close_device(this->context);
 
   throw "Failed to create QP";

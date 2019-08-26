@@ -18,6 +18,13 @@ class ManagementQp;
 typedef std::vector<PcxQp *> GraphQps;
 typedef GraphQps::iterator GraphQpsIt;
 
+/* 
+ * Communication Graph class.
+ * Holds all the communication graph of a collective operation.
+ * The Communication Graph holds a managment QP which acts as a 
+ * managment unit which in charge of executing all the operation that
+ * where defined in advance. 
+ */ 
 class CommGraph {
 public:
   CommGraph(VerbCtx *vctx);
@@ -25,7 +32,9 @@ public:
 
   void enqueue(LambdaInstruction &ins);
 
+  // Register a QP to the graph. 
   void regQp(PcxQp *qp);
+  
   void wait(PcxQp *slave_qp);
   void wait_send(PcxQp *slave_qp);
 
@@ -36,7 +45,10 @@ public:
   ManagementQp *mqp; // mqp stands for "Managment Queue Pair"
 
   VerbCtx *ctx;
+
+  // Instructions queue
   InsQueue iq;
+  
   GraphQps qps;
   uint16_t qp_cnt;
 };
@@ -58,8 +70,13 @@ public:
   void print();
   void db();
 
+  // Holds how many WQEs will be executed during a single collective operation 
   int wqe_count;
+
+  // Holds how many CQE are expected to be generated during a single collective
+  //  operation 
   int cqe_count;
+
   int scqe_count;
   int recv_enables;
 
@@ -69,7 +86,10 @@ public:
 protected:
   CommGraph *graph;
   struct ibv_qp *ibqp;
+
+  // Completion Queue
   struct ibv_cq *ibcq;
+
   struct ibv_cq *ibscq;
   PcxQp *pair;
   bool initiated;
@@ -179,12 +199,12 @@ public:
 };
 
 struct ibv_qp *create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
-                                    uint16_t send_wq_size);
+                                    uint16_t send_wq_size); // TODO: Make this a private function of ManagementQp
 
 struct ibv_qp *rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
                             uint16_t send_wq_size, uint16_t recv_rq_size,
                             struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
-                            int slaveSend = 1);
+                            int slaveSend = 1); // TODO: Make this a private function of PcxQp
 
 struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context = NULL,
                             struct ibv_comp_channel *channel = NULL,

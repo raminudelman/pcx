@@ -152,8 +152,13 @@ void RearmTasks::add(uint32_t *ptr, int inc) {
 
 int qp_ctx::poll() {
 
+  // The following is very similar to the function:
+  // mlx5dv_get_cqe_opcode @ https://github.com/linux-rdma/rdma-core/blob/master/providers/mlx5/mlx5dv.h @ Line 752
+  // The only difference is that the function cannot get a volotile argument.
   uint8_t opcode = this->cur_cqe->op_own >> 4;
 
+  // The following 'if' statment look very similar to the function:
+  // get_sw_cqe @ https://github.com/linux-rdma/rdma-core/blob/master/providers/mlx5/cq.c @ Line122
   if (opcode != MLX5_CQE_INVALID &&
       !((cur_cqe->op_own & MLX5_CQE_OWNER_MASK) ^ !!((this->poll_cnt) & (this->cq->cqe_cnt)))) {
     
@@ -184,7 +189,7 @@ int qp_ctx::cq_db(int x) {
   this->poll_cnt += x;
 }
 
-void qp_ctx::db() {
+void qp_ctx::db() { // TODO: This implementation is identical to db(uint32_t k). Instead of replicating the code, need to call here only db(exe_cnt).
   struct mlx5_db_seg db;
   exe_cnt += (this->wqes);
   dbseg.opmod_idx_opcode = htobe32(exe_cnt << 8);

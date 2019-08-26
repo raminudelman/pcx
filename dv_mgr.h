@@ -40,6 +40,10 @@
 #include <string.h>
 #include <unistd.h>
 extern "C" {
+// Needed for:
+//     mlx5dv_set_ctrl_seg
+//     mlx5dv_set_data_seg
+//     mlx5dv_set_remote_data_seg
 #include <infiniband/mlx5dv.h>
 }
 
@@ -71,7 +75,7 @@ enum mlx5dv_vector_calc_data_type {
   MLX5DV_VECTOR_CALC_DATA_TYPE_NUMBER
 };
 
-enum mlx5dv_vector_calc_chunks {
+enum mlx5dv_vector_calc_chunks { // TODO: Check if used somewhere and if not where did it come from?
   MLX5DV_VECTOR_CALC_CHUNK_64 = 0,
   MLX5DV_VECTOR_CALC_CHUNK_128,
   MLX5DV_VECTOR_CALC_CHUNK_256,
@@ -83,7 +87,7 @@ enum mlx5dv_vector_calc_chunks {
   MLX5DV_VECTOR_CALC_CHUNK_NUMBER
 };
 
-typedef struct AKL {
+typedef struct AKL { // Address Key Length // TODO: Check if used. If not consider deleting.
   uint64_t addr;
   uint32_t key;
   uint32_t len;
@@ -109,7 +113,7 @@ struct mlx5_db_seg {
   __be32 qpn_ds;
 };
 
-struct cqe64 {
+struct cqe64 { // TODO: This struct is very similar to the struct mlx5_cqe64 defined in mlxdv.h // TODO: Why cant we take the struct as is from mlx5dv.h?
   uint8_t rsvd0[2];
   __be16 wqe_id;
   uint8_t rsvd4[13];
@@ -183,8 +187,12 @@ public:
   qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
          size_t num_of_cqes, struct ibv_cq *scq, size_t num_of_send_cqes);
   ~qp_ctx();
+
+  // Send a DoorBell
   void db();
   void db(uint32_t k);
+
+  // Return *all* the credits to peer QP
   void sendCredit();
   void write(const struct ibv_sge *local, const struct ibv_sge *remote);
   void write(NetMem *local, NetMem *remote) {
@@ -241,7 +249,7 @@ public:
 
   void setPair(qp_ctx *qp) { this->pair = qp; };
 
-  qp_ctx *pair;
+  qp_ctx *pair; // TODO: Rename this to "peer"
 
   cq_ctx *scq;
 
