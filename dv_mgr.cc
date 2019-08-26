@@ -154,13 +154,17 @@ int qp_ctx::poll() {
 
   uint8_t opcode = this->cur_cqe->op_own >> 4;
 
-  if (opcode != 15 &&
-      !((cur_cqe->op_own & 1) ^ !!((this->poll_cnt) & (this->cq->cqe_cnt)))) {
-    if (opcode == 13 || opcode == 14) {
+  if (opcode != MLX5_CQE_INVALID &&
+      !((cur_cqe->op_own & MLX5_CQE_OWNER_MASK) ^ !!((this->poll_cnt) & (this->cq->cqe_cnt)))) {
+    
+    #ifdef DEBUG
+    if (opcode == MLX5_CQE_REQ_ERR || opcode == MLX5_CQE_RESP_ERR) {
       printf("bad CQE: %X\n hw_syn = %X, vendor_syn = %X, syn = %X\n",
              cur_cqe->wqe_counter, cur_cqe->hw_syn, cur_cqe->vendor_syn,
              cur_cqe->syn);
     }
+    #endif // DEBUG
+    
     this->cq->dbrec[0] = htobe32((this->poll_cnt) & 0xffffff);
     (this->poll_cnt) += cqes;
     volatile void *tar =
