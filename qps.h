@@ -95,6 +95,17 @@ protected:
   bool initiated;
   bool has_scq;
   VerbCtx *ctx;
+
+  struct ibv_qp *rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
+                              uint16_t send_wq_size, uint16_t recv_rq_size,
+                              struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
+                              int slaveSend = 1);
+
+  struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, 
+                              void *cq_context = NULL,
+                              struct ibv_comp_channel *channel = NULL,
+                              int comp_vector = 0);
+
 };
 
 class ManagementQp : public PcxQp {
@@ -111,6 +122,10 @@ public:
   LambdaInstruction stack;
   uint16_t last_qp;
   bool has_stack;
+
+private:
+  struct ibv_qp *create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
+                                      uint16_t send_wq_size);
 };
 
 class LoopbackQp : public PcxQp {
@@ -197,15 +212,3 @@ public:
   RingQp *right;
   RingQp *left;
 };
-
-struct ibv_qp *create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
-                                    uint16_t send_wq_size); // TODO: Make this a private function of ManagementQp
-
-struct ibv_qp *rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
-                            uint16_t send_wq_size, uint16_t recv_rq_size,
-                            struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
-                            int slaveSend = 1); // TODO: Make this a private function of PcxQp
-
-struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context = NULL,
-                            struct ibv_comp_channel *channel = NULL,
-                            int comp_vector = 0);
