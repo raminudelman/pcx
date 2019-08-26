@@ -44,7 +44,6 @@ extern "C" {
 
 #include <infiniband/verbs_exp.h>
 
-#define DEBUGX
 #define VALIDITY_CHECKX
 #define HANG_REPORTX
 
