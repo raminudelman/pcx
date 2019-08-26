@@ -32,18 +32,20 @@
 
 #include "pcx_mem.h"
 
-RemoteMem::RemoteMem(uint64_t addr, uint32_t rkey) {
-  sge.addr = addr;
-  sge.lkey = rkey;
-  this->mr = NULL;
-}
-
-RemoteMem::~RemoteMem(){};
-
+PCX_ERROR(NotEnoughKLMs)
+PCX_ERROR(NoUMRKey)
+PCX_ERROR(CreateMRFailed)
+PCX_ERROR(UMR_PollFailed)
+PCX_ERROR(UMR_CompletionInError)
+PCX_ERROR_RES(UMR_PostFailed)
+PCX_ERROR(EmptyUMR)
+PCX_ERROR(MemoryNotSupported)
 PCX_ERROR(AllocateDeviceMemoryFailed)
 PCX_ERROR(AllocateMemoryFailed)
 PCX_ERROR(RegMrFailed)
 PCX_ERROR(ExpRegMrFailed)
+
+NetMem::~NetMem() {}
 
 HostMem::HostMem(size_t length, VerbCtx *ctx) {
   this->buf = malloc(length);
@@ -59,6 +61,11 @@ HostMem::HostMem(size_t length, VerbCtx *ctx) {
   }
   this->sge.length = length;
   this->sge.lkey = this->mr->lkey;
+}
+
+HostMem::~HostMem() {
+  ibv_dereg_mr(this->mr);
+  free(this->buf);
 }
 
 Memic::Memic(size_t length, VerbCtx *ctx) {
@@ -91,13 +98,6 @@ Memic::Memic(size_t length, VerbCtx *ctx) {
   this->sge.lkey = this->mr->lkey;
 }
 
-NetMem::~NetMem() {}
-
-HostMem::~HostMem() {
-  ibv_dereg_mr(this->mr);
-  free(this->buf);
-}
-
 Memic::~Memic() {
   ibv_dereg_mr(this->mr);
   ibv_exp_free_dm(this->dm);
@@ -116,16 +116,6 @@ UsrMem::UsrMem(void *buf, size_t length, VerbCtx *ctx) {
 
 UsrMem::~UsrMem() { ibv_dereg_mr(this->mr); }
 
-UmrMem::UmrMem(Iov &iov, VerbCtx *ctx) {
-  // return;
-  this->mr = register_umr(iov, ctx);
-  this->sge.lkey = mr->lkey;
-  this->sge.length = iov[0]->sg()->length;
-  this->sge.addr = iov[0]->sg()->addr;
-}
-
-UmrMem::~UmrMem() { ibv_dereg_mr(this->mr); }
-
 RefMem::RefMem(NetMem *mem, uint64_t offset, uint32_t length) {
   this->sge = *(mem->sg());
   this->sge.addr += offset;
@@ -135,29 +125,18 @@ RefMem::RefMem(NetMem *mem, uint64_t offset, uint32_t length) {
 
 RefMem::~RefMem() {}
 
-void freeIov(Iov &iov) {
-  for (Iovit it = iov.begin(); it != iov.end(); ++it) {
-    delete (*it);
-  }
-  iov.clear();
+
+UmrMem::UmrMem(std::vector<NetMem *> &iov, VerbCtx *ctx) {
+  // return;
+  this->mr = register_umr(iov, ctx);
+  this->sge.lkey = mr->lkey;
+  this->sge.length = iov[0]->sg()->length;
+  this->sge.addr = iov[0]->sg()->addr;
 }
 
-void freeIop(Iop &iop) {
-  for (Iopit it = iop.begin(); it != iop.end(); ++it) {
-    delete (*it);
-  }
-  iop.clear();
-}
+UmrMem::~UmrMem() { ibv_dereg_mr(this->mr); }
 
-PCX_ERROR(NotEnoughKLMs)
-PCX_ERROR(NoUMRKey)
-PCX_ERROR(CreateMRFailed)
-PCX_ERROR(UMR_PollFailed)
-PCX_ERROR(UMR_CompletionInError)
-PCX_ERROR_RES(UMR_PostFailed)
-PCX_ERROR(EmptyUMR)
-
-struct ibv_mr *register_umr(Iov &iov, VerbCtx *ctx) {
+struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
 
   unsigned mem_reg_cnt = iov.size();
 
@@ -246,7 +225,13 @@ struct ibv_mr *register_umr(Iov &iov, VerbCtx *ctx) {
   return res_mr;
 }
 
-PCX_ERROR(MemoryNotSupported)
+RemoteMem::RemoteMem(uint64_t addr, uint32_t rkey) {
+  sge.addr = addr;
+  sge.lkey = rkey;
+  this->mr = NULL;
+}
+
+RemoteMem::~RemoteMem(){};
 
 PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
     : length(length_), depth(depth_), mem_type(mem_type_), cur(0) {

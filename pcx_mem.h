@@ -73,11 +73,6 @@ protected:
   struct ibv_mr *mr; 
 };
 
-typedef std::vector<NetMem *> Iov;
-typedef Iov::iterator Iovit;
-
-void freeIov(Iov &iov); // TODO: Used only in pcx_all_reduce_king/ring.h. Need to remove it from here! this should not be in the API of PCX mem!
-
 // Host Memory
 class HostMem : public NetMem {
 public:
@@ -118,12 +113,12 @@ public:
   ~RefMem();
 };
 
-struct ibv_mr *register_umr(Iov &iov, VerbCtx *ctx);
-
 class UmrMem : public NetMem {
 public:
-  UmrMem(Iov &mem_reg, VerbCtx *ctx);
+  UmrMem(std::vector<NetMem *> &mem_reg, VerbCtx *ctx);
   ~UmrMem();
+private:
+  struct ibv_mr *register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx);
 };
 
 class RemoteMem : public NetMem {
@@ -155,7 +150,3 @@ private:
   size_t cur;
 };
 
-// TODO: Should be moved to pcx_all_reduce_ring.h and should be there within a class
-typedef std::vector<PipeMem *> Iop;
-typedef Iop::iterator Iopit;
-void freeIop(Iop &iop);
