@@ -31,19 +31,14 @@
  */
 #pragma once
 
+#include "verbs_ctx.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <vector>
-
-extern "C" {
-#include <infiniband/mlx5dv.h>
-}
-#include <infiniband/verbs_exp.h>
-
-#include "verbs_ctx.h"
 
 enum PCX_MEMORY_TYPE {
   PCX_MEMORY_TYPE_HOST,

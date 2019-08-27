@@ -31,19 +31,21 @@
  */
 #pragma once
 
+
+extern "C" {
+#include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
+#include <infiniband/mlx5dv.h>
+}
+
+// Needed for creating QPs that support Cross-Channel (CORE-Direct).
+#include <infiniband/verbs_exp.h>
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <mutex>
-
-extern "C" {
-#include <infiniband/mlx5dv.h>
-}
-
-// Needed for creating QPs that support Cross-Channel (CORE-Direct).
-#include <infiniband/verbs_exp.h>
 
 #define VALIDITY_CHECKX
 #define HANG_REPORTX

@@ -31,15 +31,10 @@
  */
 #pragma once
 
-//#include <config.h>
-
 #include "udma_barrier.h"
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+
 extern "C" {
+#include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
 // Needed for:
 //     mlx5dv_set_ctrl_seg
 //     mlx5dv_set_data_seg
@@ -49,6 +44,11 @@ extern "C" {
 
 #include "pcx_mem.h"
 
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <map>
 
 #define memory_store_fence() asm volatile("" ::: "memory")
