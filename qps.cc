@@ -70,10 +70,6 @@ PcxQp::PcxQp(CommGraph *cgraph)
 PcxQp::~PcxQp() {
 }
 
-void PcxQp::db() { 
-  this->qp->db(); 
-}
-
 void PcxQp::db(uint32_t k) { 
   this->qp->db(k); 
 }
@@ -99,46 +95,35 @@ void PcxQp::send_credit() {
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::write(NetMem *local, NetMem *remote) {
+void PcxQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
-  struct ibv_sge lsg = (*local->sg());
-  struct ibv_sge rsg = (*remote->sg());
-
-  LambdaInstruction lambda = [this, lsg, rsg]() {
-    this->qp->write(&lsg, &rsg);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void PcxQp::write_cmpl(NetMem *local, NetMem *remote) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-  if (has_scq) {
-    ++scqe_count;
-  } else {
-    ++cqe_count;
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
   }
 
   struct ibv_sge lsg = (*local->sg());
   struct ibv_sge rsg = (*remote->sg());
 
-  LambdaInstruction lambda = [this, lsg, rsg]() {
-    this->qp->write_cmpl(&lsg, &rsg);
+  LambdaInstruction lambda = [this, lsg, rsg, require_cmpl]() {
+    this->qp->write(&lsg, &rsg, require_cmpl);
   };
 
   this->graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                         uint8_t op, uint8_t type) {
+void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
+                         uint8_t op, uint8_t type, bool require_cmpl) {
   wqe_count += 2;
   ++this->pair->cqe_count;
-  LambdaInstruction lambda = [this, local, remote, num_vectors, op, type]() {
-    this->qp->reduce_write(local, remote, num_vectors, op, type);
+  LambdaInstruction lambda = [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    this->qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
   };
   this->graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);
@@ -479,23 +464,14 @@ void DoublingQp::init() {
   PRINT("Doubling RC QP initiated");
 }
 
-void DoublingQp::write(NetMem *local) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-  LambdaInstruction lambda = [this, local]() {
-    this->qp->write(local, this->remote);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void DoublingQp::write_cmpl(NetMem *local) {
+void DoublingQp::write(NetMem *local, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
-  LambdaInstruction lambda = [this, local]() {
-    this->qp->write_cmpl(local, this->remote);
+  LambdaInstruction lambda = [this, local, require_cmpl]() {
+    this->qp->write(local, this->remote, require_cmpl);
   };
+
   this->graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);
 }
@@ -506,32 +482,23 @@ RcQp::~RcQp() {
   }
 }
 
-void RcQp::write(NetMem *local, size_t pos) {
+void RcQp::write(NetMem *local, size_t pos, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
-  struct ibv_sge lsg = (*local->sg());
-
-  LambdaInstruction lambda = [this, lsg, pos]() {
-    this->qp->write(&lsg, (*this->remote)[pos].sg());
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void RcQp::write_cmpl(NetMem *local, size_t pos) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-  if (has_scq) {
-    ++scqe_count;
-  } else {
-    ++cqe_count;
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
   }
 
+  // TODO: Consider calling here the PcxQp::write(NetMem *local, RefMem *remote, bool require_cmpl); (Overload if this function does not exist)
   struct ibv_sge lsg = (*local->sg());
 
-  LambdaInstruction lambda = [this, lsg, pos]() {
-    this->qp->write_cmpl(&lsg, (*this->remote)[pos].sg());
+  LambdaInstruction lambda = [this, lsg, pos,require_cmpl]() {
+    this->qp->write(&lsg, (*this->remote)[pos].sg(), require_cmpl);
   };
 
   this->graph->enqueue(lambda);
@@ -539,29 +506,23 @@ void RcQp::write_cmpl(NetMem *local, size_t pos) {
 }
 
 void RcQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
-                        uint8_t op, uint8_t type) {
+                        uint8_t op, uint8_t type, bool require_cmpl) {
   wqe_count += 2;
   ++this->pair->cqe_count;
-  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
-    RefMem ref = ((*this->remote)[pos]);
-    this->qp->reduce_write(local, &ref, num_vectors, op, type);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
 
-void RcQp::reduce_write_cmpl(NetMem *local, size_t pos, uint16_t num_vectors,
-                             uint8_t op, uint8_t type) {
-  wqe_count += 2;
-  ++this->pair->cqe_count;
-  if (has_scq) {
-    ++scqe_count;
-  } else {
-    ++cqe_count;
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
   }
-  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
+
+  // TODO: Consider using PcxQp::reduce_write(NetMem *local, RefMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl). Added this function in case it does not exist
+
+  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos, require_cmpl]() {
     RefMem ref = ((*this->remote)[pos]);
-    this->qp->reduce_write_cmpl(local, &ref, num_vectors, op, type);
+    this->qp->reduce_write(local, &ref, num_vectors, op, type, require_cmpl);
   };
   this->graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);

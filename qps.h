@@ -59,18 +59,26 @@ class PcxQp {
 public:
   PcxQp(CommGraph *cgraph);
   virtual ~PcxQp() = 0;
+  
   virtual void init() = 0;
   void fin();
+
   void send_credit();
-  void write(NetMem *local, NetMem *remote);
-  void write_cmpl(NetMem *local, NetMem *remote);
+
+  // Sends the local memory to remote memory using RDMA write
+  void write(NetMem *local, NetMem *remote, bool require_cmpl);
+
+  // Performs reduce operation on the local memory and sends the result data
+  // to remote memory using RDMA write. 
+  // In case CQE is needed, the argument require_cmpl should be set to 'true'
   void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type);
+                    uint8_t op, uint8_t type, bool require_cmpl);
 
   void poll();
-  void db(uint32_t k);
+
+  void db(uint32_t k = 0);
+
   void print();
-  void db();
 
   // Holds how many WQEs will be executed during a single collective operation 
   int wqe_count;
@@ -159,8 +167,7 @@ public:
   DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
   ~DoublingQp();
   void init();
-  void write(NetMem *local);
-  void write_cmpl(NetMem *local);
+  void write(NetMem *local, bool require_cmpl);
 
   LambdaExchange exchange;
   LambdaExchange barrier;
@@ -176,12 +183,9 @@ public:
       : PcxQp(cgraph), incoming(incomingBuffer) {};
   virtual ~RcQp();
 
-  void write(NetMem *local, size_t pos = 0);
-  void write_cmpl(NetMem *local, size_t pos = 0);
+  void write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
   void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
-                    uint8_t type);
-  void reduce_write_cmpl(NetMem *local, size_t pos, uint16_t num_vectors,
-                         uint8_t op, uint8_t type);
+                    uint8_t type, bool require_cmpl);
 
 protected:
   PipeMem *remote;

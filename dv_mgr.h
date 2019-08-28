@@ -180,50 +180,36 @@ public:
   // Return *all* the credits to peer QP
   void send_credit();
 
-  void write(const struct ibv_sge *local, const struct ibv_sge *remote);
-  void write(NetMem *local, NetMem *remote) {
-    write(local->sg(), remote->sg());
-  };
-  void write(NetMem *local, RefMem remote) { 
-    write(local->sg(), remote.sg()); 
-  };
-
-  void write_cmpl(const struct ibv_sge *local, const struct ibv_sge *remote);
-  void write_cmpl(NetMem *local, NetMem *remote) {
-    write_cmpl(local->sg(), remote->sg());
-  };
-  void write_cmpl(NetMem *local, RefMem remote) {
-    write_cmpl(local->sg(), remote.sg());
-  };
+  void write(const struct ibv_sge *local, const struct ibv_sge *remote, 
+             bool require_cmpl);
+  void write(NetMem *local, NetMem *remote, bool require_cmpl); // TODO: Check if this overload is needed.
+  void write(NetMem *local, RefMem remote, bool require_cmpl); // TODO: Check if this overload is needed.
 
   void reduce_write(const struct ibv_sge *local, const struct ibv_sge *remote,
-                    uint16_t num_vectors, uint8_t op, uint8_t type);
-  void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type) {
-    reduce_write(local->sg(), remote->sg(), num_vectors, op, type);
-  };
-  void reduce_write(NetMem *local, RefMem &remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type) {
-    reduce_write(local->sg(), remote.sg(), num_vectors, op, type);
-  };
-
-  void reduce_write_cmpl(const struct ibv_sge *local,
-                         const struct ibv_sge *remote, uint16_t num_vectors,
-                         uint8_t op, uint8_t type);
-  void reduce_write_cmpl(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                         uint8_t op, uint8_t type) {
-    reduce_write_cmpl(local->sg(), remote->sg(), num_vectors, op, type);
-  };
+                    uint16_t num_vectors, uint8_t op, uint8_t type, 
+                    bool require_cmpl);
+  void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,// TODO: Check if this overload is needed.
+                    uint8_t op, uint8_t type, bool require_cmpl);
+  void reduce_write(NetMem *local, RefMem &remote, uint16_t num_vectors, // TODO: Check if this overload is needed.
+                    uint8_t op, uint8_t type, bool require_cmpl);
 
   void cd_send_enable(qp_ctx *slave_qp);
   void cd_recv_enable(qp_ctx *slave_qp);
+
+  // Send 'wait' command on the CQ of the slave qp
   void cd_wait(qp_ctx *slave_qp);
-  void cd_wait_send(qp_ctx *slave_qp);
-  void cd_wait_signal(qp_ctx *slave_qp);
+
+  // Send 'wait' command on the SCQ of the slave qp
+  void cd_wait_send(qp_ctx *slave_qp); // TODO: Use cd_wait() and add an argument whether to wait on the CQ or on the SCQ
+
+  void cd_wait_signal(qp_ctx *slave_qp); // TODO: This is the same as cd_wait() + require_cmpl
+
   void nop(size_t num_pad);
 
   void pad(int half = 0);
+
   void dup();
+  
   void fin();
 
   int poll();
@@ -241,6 +227,7 @@ public:
   // Holds the peer's QP.
   qp_ctx *pair; // TODO: Rename this to "peer"
 
+  // Completion Queue for Send Queue
   cq_ctx *scq;
 
   uint32_t get_poll_cnt() { 
@@ -274,5 +261,6 @@ private:
   // The number of CQEs that are expected after a single
   // collective operation is done
   size_t cqes;
+
   volatile struct cqe64 *cur_cqe;
 };
