@@ -227,7 +227,6 @@ public:
   void fin();
 
   int poll();
-  int cq_db(int x);
 
   void rearm();
 

@@ -229,12 +229,6 @@ int qp_ctx::poll() {
   }
 }
 
-int qp_ctx::cq_db(int x) {
-  uint32_t val = (this->poll_cnt + x - 1);
-  this->cq->dbrec[0] = htobe32(val & 0xffffff);
-  this->poll_cnt += x;
-}
-
 void qp_ctx::db(uint32_t k) {
   uint32_t exe_cnt = (this->wqes);
   if (k != 0) {
@@ -363,7 +357,6 @@ void qp_ctx::reduce_write_cmpl(const struct ibv_sge *local,
 
   pair->cmpl_cnt += 1;
 }
-
 
 void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
