@@ -59,7 +59,7 @@ void CommGraph::finish() {
 PcxQp::PcxQp(CommGraph *cgraph)
     : wqe_count(0), cqe_count(0), scqe_count(0), recv_enables(0),
       initiated(false), graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
-      ibcq(NULL), ibscq(NULL) {
+      ibcq(NULL), ibscq(NULL), pair(this) {
   cgraph->regQp(this);
 }
 
@@ -201,7 +201,6 @@ struct ibv_cq *PcxQp::cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context,
 
 ManagementQp::ManagementQp(CommGraph *cgraph)
     : PcxQp(cgraph), last_qp(0), has_stack(false) {
-  this->pair = this;
   this->has_scq = false;
 }
 
@@ -353,7 +352,6 @@ struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *ve
 }
 
 LoopbackQp::LoopbackQp(CommGraph *cgraph) : PcxQp(cgraph) {
-  this->pair = this;
   this->has_scq = false;
   cgraph->mqp->cd_recv_enable(this);
 }
@@ -384,7 +382,6 @@ void LoopbackQp::init() {
 DoublingQp::DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
                        uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
     : PcxQp(cgraph), incoming(incomingBuffer) {
-  this->pair = this;
   this->has_scq = true;
   cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
@@ -549,7 +546,7 @@ void RingQp::init() {
 
   initiated = true;
 
-  PRINT("Ring RC QP initiated");
+  PRINT("RingQP initiated");
 }
 
 void RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
