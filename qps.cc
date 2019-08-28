@@ -651,7 +651,7 @@ void RingQp::init() {
   PRINT("Ring RC QP initiated");
 }
 
-RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
+RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file
                    uint32_t myRank, uint32_t commSize, uint32_t tag1,
                    uint32_t tag2, PipeMem *incoming) {
   uint32_t rightRank = (myRank + 1) % commSize;

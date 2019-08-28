@@ -199,7 +199,7 @@ public:
   LambdaExchange barrier;
 };
 
-class RingPair {
+class RingPair { // TODO: Move to new file pcx_ring.h
 public:
   RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
            uint32_t myRank, uint32_t commSize, uint32_t tag1, uint32_t tag2,
