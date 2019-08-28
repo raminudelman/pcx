@@ -92,9 +92,8 @@ public:
   uint16_t id;
   qp_ctx *qp;
 
-  void set_pair(PcxQp *pair_) { 
-    this->pair = pair_; 
-  };
+  // Enable to change the peer of the QP
+  void set_pair(PcxQp *pair_); // TODO: Change the name to peer
 
 protected:
   CommGraph *graph;

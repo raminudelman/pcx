@@ -125,6 +125,10 @@ void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, //
   graph->mqp->cd_send_enable(this);
 }
 
+void PcxQp::set_pair(PcxQp *pair_) { 
+    this->pair = pair_; 
+};
+
 struct ibv_qp *PcxQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
                             uint16_t send_wq_size, uint16_t recv_rq_size,
                             struct ibv_cq *s_cq, int slaveRecv, int slaveSend) {
