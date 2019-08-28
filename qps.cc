@@ -57,9 +57,8 @@ void CommGraph::finish() {
 }
 
 PcxQp::PcxQp(CommGraph *cgraph)
-    : wqe_count(0), cqe_count(0), scqe_count(0), recv_enables(0),
-      graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
-      ibcq(NULL), ibscq(NULL), pair(this) {
+    : wqe_count(0), cqe_count(0), recv_enables(0),
+      graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL), ibcq(NULL) {
   cgraph->regQp(this);
 }
 
@@ -83,7 +82,43 @@ void PcxQp::fin() {
   this->qp->fin(); 
 }
 
-void PcxQp::send_credit() {
+struct ibv_cq *PcxQp::cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context,
+                            struct ibv_comp_channel *channel, int comp_vector) {
+  if (cqe == 0) {
+    ++cqe;
+  }
+
+  struct ibv_cq *cq =
+      ibv_create_cq(verb_ctx->context, cqe, cq_context, channel, comp_vector);
+
+  if (!cq) {
+    PERR(CQCreateFailed);
+  }
+
+  struct ibv_exp_cq_attr attr;
+  attr.cq_cap_flags = IBV_EXP_CQ_IGNORE_OVERRUN;
+  attr.comp_mask = IBV_EXP_CQ_ATTR_CQ_CAP_FLAGS;
+
+  int res = ibv_exp_modify_cq(cq, &attr, IBV_EXP_CQ_CAP_FLAGS);
+  if (res) {
+    PERR(CQModifyFailed);
+  }
+
+  return cq;
+}
+
+TransportQp::TransportQp(CommGraph *cgraph)
+    : PcxQp(cgraph), scqe_count(0), ibscq(NULL), pair(this) {}
+
+TransportQp::~TransportQp() {
+}
+
+void TransportQp::init() {
+  
+}
+
+
+void TransportQp::send_credit() {
   ++wqe_count;
   ++pair->cqe_count;
   LambdaInstruction lambda = [this]() { qp->send_credit(); };
@@ -91,7 +126,7 @@ void PcxQp::send_credit() {
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
+void TransportQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
@@ -114,7 +149,7 @@ void PcxQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
+void TransportQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
                          uint8_t op, uint8_t type, bool require_cmpl) {
   wqe_count += 2;
   ++this->pair->cqe_count;
@@ -125,11 +160,11 @@ void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, //
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::set_pair(PcxQp *pair_) { 
+void TransportQp::set_pair(PcxQp *pair_) { 
     this->pair = pair_; 
 };
 
-struct ibv_qp *PcxQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
+struct ibv_qp *TransportQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
                             uint16_t send_wq_size, uint16_t recv_rq_size,
                             struct ibv_cq *s_cq, int slaveRecv, int slaveSend) {
   struct ibv_exp_qp_init_attr init_attr;
@@ -174,41 +209,14 @@ struct ibv_qp *PcxQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
   return qp;
 }
 
-struct ibv_cq *PcxQp::cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context,
-                            struct ibv_comp_channel *channel, int comp_vector) {
-  if (cqe == 0) {
-    ++cqe;
-  }
-
-  struct ibv_cq *cq =
-      ibv_create_cq(verb_ctx->context, cqe, cq_context, channel, comp_vector);
-
-  if (!cq) {
-    PERR(CQCreateFailed);
-  }
-
-  struct ibv_exp_cq_attr attr;
-  attr.cq_cap_flags = IBV_EXP_CQ_IGNORE_OVERRUN;
-  attr.comp_mask = IBV_EXP_CQ_ATTR_CQ_CAP_FLAGS;
-
-  int res = ibv_exp_modify_cq(cq, &attr, IBV_EXP_CQ_CAP_FLAGS);
-  if (res) {
-    PERR(CQModifyFailed);
-  }
-
-  return cq;
-}
 
 ManagementQp::ManagementQp(CommGraph *cgraph)
-    : PcxQp(cgraph), last_qp(0), has_stack(false) {
-  this->has_scq = false;
-}
+    : PcxQp(cgraph), last_qp(0), has_stack(false) {}
 
 ManagementQp::~ManagementQp() {
   delete (qp);
   ibv_destroy_qp(ibqp);
   ibv_destroy_cq(ibcq);
-  this->ibscq = NULL;
 }
 
 void ManagementQp::init() {
@@ -350,7 +358,7 @@ struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *ve
   return _mq;
 }
 
-LoopbackQp::LoopbackQp(CommGraph *cgraph) : PcxQp(cgraph) {
+LoopbackQp::LoopbackQp(CommGraph *cgraph) : TransportQp(cgraph) {
   this->has_scq = false;
   cgraph->mqp->cd_recv_enable(this);
 }
@@ -372,14 +380,13 @@ void LoopbackQp::init() {
   rc_qp_get_addr(ibqp, &loopback_addr);
   rc_qp_connect(&loopback_addr, ibqp);
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count);
-  ibscq = NULL;
 
   PRINT("Loopback RC QP initiated");
 }
 
 DoublingQp::DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
                        uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
-    : PcxQp(cgraph), incoming(incomingBuffer) {
+    : TransportQp(cgraph), incoming(incomingBuffer) {
   this->has_scq = true;
   cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
@@ -464,7 +471,7 @@ void DoublingQp::write(NetMem *local, bool require_cmpl) {
 
 RingQp::RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
                uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
-    : PcxQp(cgraph), incoming(incomingBuffer) {
+    : TransportQp(cgraph), incoming(incomingBuffer) {
   this->has_scq = true;
   cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;

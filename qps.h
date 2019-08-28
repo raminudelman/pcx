@@ -62,17 +62,6 @@ public:
   virtual void init() = 0;
   void fin();
 
-  void send_credit();
-
-  // Sends the local memory to remote memory using RDMA write
-  void write(NetMem *local, NetMem *remote, bool require_cmpl);
-
-  // Performs reduce operation on the local memory and sends the result data
-  // to remote memory using RDMA write. 
-  // In case CQE is needed, the argument require_cmpl should be set to 'true'
-  void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type, bool require_cmpl);
-
   void poll();
 
   void db(uint32_t k = 0);
@@ -84,16 +73,16 @@ public:
 
   // Holds how many CQE are expected to be generated during a single collective
   // operation 
-  int cqe_count;
+  int cqe_count; // Required for all QP types (both transport and non transport)
 
-  int scqe_count;
   int recv_enables;
 
+  // Holds a unique number for the QP.
+  // Every QP within the CommmGraph has a unique number 
+  // which is given during CommmGraph::reqQp.
   uint16_t id;
-  qp_ctx *qp;
 
-  // Enable to change the peer of the QP
-  void set_pair(PcxQp *pair_); // TODO: Change the name to peer
+  qp_ctx *qp;
 
 protected:
   CommGraph *graph;
@@ -107,23 +96,54 @@ protected:
   // is used only for the Receive Queue of the QP.
   struct ibv_cq *ibcq;
 
-  // Completion Queue for Send Queue.
-  struct ibv_cq *ibscq;
+  VerbCtx *ctx;
+
+  struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, 
+                              void *cq_context = NULL,
+                              struct ibv_comp_channel *channel = NULL,
+                              int comp_vector = 0);
+
+};
+
+// Each QP which is of type TransportQp is a QP which has a tranport
+// and it responsible for transferring data from one place to another.
+class TransportQp : public PcxQp {
+public:
+  TransportQp(CommGraph *cgraph);
+  virtual ~TransportQp() = 0;
+  
+  virtual void init() = 0;
+
+  int scqe_count;
+
+  void send_credit();
+
+  // Sends the local memory to remote memory using RDMA write
+  void write(NetMem *local, NetMem *remote, bool require_cmpl);
+
+  // Performs reduce operation on the local memory and sends the result data
+  // to remote memory using RDMA write. 
+  // In case CQE is needed, the argument require_cmpl should be set to 'true'
+  void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+
+  // Enable to change the peer of the QP
+  void set_pair(PcxQp *pair_); // TODO: Change the name to peer
+
+protected:
 
   PcxQp *pair; // TODO: Change this name to "peer"
 
   bool has_scq;
-  VerbCtx *ctx;
+
+  // Completion Queue for Send Queue.
+  struct ibv_cq *ibscq;
 
   struct ibv_qp *rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
                               uint16_t send_wq_size, uint16_t recv_rq_size,
                               struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
                               int slaveSend = 1);
 
-  struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, 
-                              void *cq_context = NULL,
-                              struct ibv_comp_channel *channel = NULL,
-                              int comp_vector = 0);
 
 };
 
@@ -137,16 +157,16 @@ public:
   ~ManagementQp();
   void init();
 
-  LambdaInstruction stack;
-  uint16_t last_qp;
-  bool has_stack;
+  LambdaInstruction stack; // TODO: Check if used. If not used remove!
+  uint16_t last_qp; // TODO: Check if used. If not used remove!
+  bool has_stack; // TODO: Check if used. If not used remove!
 
 private:
   struct ibv_qp *create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
                                       uint16_t send_wq_size);
 };
 
-class LoopbackQp : public PcxQp {
+class LoopbackQp : public TransportQp {
 public:
   LoopbackQp(CommGraph *cgraph);
   ~LoopbackQp();
@@ -157,7 +177,7 @@ typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *, // TO
                                  size_t, uint32_t, uint32_t);
 typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange; // TODO: Move this to pcx_transport_qps
 
-class DoublingQp : public PcxQp { // TODO: Move to new file pcx_doubling.h // Create new QP type to be TransportQp and DoublingQp should inherit it
+class DoublingQp : public TransportQp { // TODO: Move to new file pcx_doubling.h // Create new QP type to be TransportQp and DoublingQp should inherit it
 public:
   DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
   ~DoublingQp();
@@ -165,15 +185,15 @@ public:
   void init();
   void write(NetMem *local, bool require_cmpl);
 
-  LambdaExchange exchange;
-  LambdaExchange barrier;
+  LambdaExchange exchange; // TODO: Consider to move to TransportQp
+  LambdaExchange barrier; // TODO: Consider to move to TransportQp
 
 protected:
   RemoteMem *remote;
   NetMem *incoming;
 };
 
-class RingQp : public PcxQp { // TODO: Move to new file pcx_ring.h // Create new QP type to be TransportQp and RingQp should inherit it
+class RingQp : public TransportQp { // TODO: Move to new file pcx_ring.h // Create new QP type to be TransportQp and RingQp should inherit it
 public:
   RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
          uint32_t tag, PipeMem *incomingBuffer);
@@ -184,8 +204,8 @@ public:
   void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
                     uint8_t type, bool require_cmpl);
 
-  LambdaExchange exchange;
-  LambdaExchange barrier;
+  LambdaExchange exchange; // TODO: Consider to move to TransportQp
+  LambdaExchange barrier; // TODO: Consider to move to TransportQp
 
 protected:
   PipeMem *remote;
