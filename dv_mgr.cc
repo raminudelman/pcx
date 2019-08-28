@@ -235,22 +235,15 @@ int qp_ctx::cq_db(int x) {
   this->poll_cnt += x;
 }
 
-void qp_ctx::db() { // TODO: This implementation is identical to db(uint32_t k). Instead of replicating the code, need to call here only db(exe_cnt).
+void qp_ctx::db(uint32_t k) {
+  uint32_t exe_cnt = (this->wqes);
+  if (k != 0) {
+    exe_cnt = k;
+  }
   struct mlx5_db_seg db;
-  exe_cnt += (this->wqes);
   dbseg.opmod_idx_opcode = htobe32(exe_cnt << 8);
   udma_to_device_barrier();
   qp->dbrec[1] = htobe32(exe_cnt);
-  pci_store_fence();
-  *(uint64_t *)qp->bf.reg = *(uint64_t *)&(dbseg);
-  pci_store_fence();
-}
-
-void qp_ctx::db(uint32_t k) {
-  struct mlx5_db_seg db;
-  dbseg.opmod_idx_opcode = htobe32(k << 8);
-  udma_to_device_barrier();
-  qp->dbrec[1] = htobe32(k);
   pci_store_fence();
   *(uint64_t *)qp->bf.reg = *(uint64_t *)&(dbseg);
   pci_store_fence();

@@ -175,8 +175,7 @@ public:
   ~qp_ctx();
 
   // Send a DoorBell
-  void db();
-  void db(uint32_t k);
+  void db(uint32_t k = 0);
 
   // Return *all* the credits to peer QP
   void send_credit();
@@ -265,8 +264,16 @@ private:
   int phase;
   uint32_t exe_cnt;
   RearmTasks tasks;
+
+  // DoorBell segment
   struct mlx5_db_seg dbseg;
+
+  // The number of WQEs that are expected to be executed 
+  // during a single collective operation
   size_t wqes;
+
+  // The number of CQEs that are expected after a single
+  // collective operation is done
   size_t cqes;
   volatile struct cqe64 *cur_cqe;
 };
