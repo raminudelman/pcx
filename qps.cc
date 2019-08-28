@@ -363,7 +363,7 @@ LoopbackQp::~LoopbackQp() {
 }
 
 void LoopbackQp::init() {
-  ibcq = cd_create_cq(ctx, cqe_count, NULL);
+  ibcq = cd_create_cq(ctx, cqe_count);
   if (!ibcq) {
     PERR(CQCreateFailed);
   }
@@ -399,12 +399,12 @@ DoublingQp::~DoublingQp() {
 
 void DoublingQp::init() {
 
-  ibcq = cd_create_cq(ctx, cqe_count, NULL);
+  ibcq = cd_create_cq(ctx, cqe_count);
   if (!ibcq) {
     PERR(CQCreateFailed);
   }
 
-  ibscq = cd_create_cq(ctx, scqe_count, NULL);
+  ibscq = cd_create_cq(ctx, scqe_count);
   if (!ibscq) {
     PERR(CQCreateFailed);
   }
@@ -484,12 +484,12 @@ RingQp::~RingQp() {
 
 void RingQp::init() {
 
-  ibcq = cd_create_cq(ctx, cqe_count, NULL);
+  ibcq = cd_create_cq(ctx, cqe_count);
   if (!ibcq) {
     PERR(CQCreateFailed);
   }
 
-  ibscq = cd_create_cq(ctx, scqe_count, NULL);
+  ibscq = cd_create_cq(ctx, scqe_count);
   if (!ibscq) {
     PERR(CQCreateFailed);
   }
