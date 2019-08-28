@@ -33,6 +33,82 @@
 #include "dv_mgr.h"
 #include "assert.h"
 
+static inline void mlx5dv_set_remote_data_seg(struct mlx5_wqe_raddr_seg *seg, // TODO: This function should be added to mlx5dv.h !
+                                              uint64_t addr, uint32_t rkey) {
+  seg->raddr = htobe64(addr);
+  seg->rkey = htonl(rkey);
+  seg->reserved = 0;
+}
+
+static void set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op,
+                               uint8_t type, uint8_t chunks,
+                               uint16_t num_vectors) {
+  vseg->calc_operation = htobe32(op << 24);
+  vseg->options = htobe32(type << 24 |
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+                          1UL << 22 |
+#elif __BYTE_ORDER == __BIG_ENDIAN
+#else
+#error __BYTE_ORDER is neither __LITTLE_ENDIAN nor __BIG_ENDIAN
+#endif
+                          chunks << 16 | num_vectors);
+}
+
+static inline void cd_set_wait(struct mlx5_wqe_coredirect_seg *seg,
+                               uint32_t index, uint32_t number) {
+  seg->index = htonl(index);
+  seg->number = htonl(number);
+}
+
+ValRearmTasks::ValRearmTasks() {
+  size = 0;
+  buf_size = 4;
+  ptrs = (uint32_t **)malloc(buf_size * sizeof(uint32_t *));
+}
+
+ValRearmTasks::~ValRearmTasks() { 
+  free(ptrs); 
+}
+
+void ValRearmTasks::add(uint32_t *ptr) {
+  ++size;
+  if (size > buf_size) {
+    uint32_t **tmp_ptrs =
+        (uint32_t **)malloc((buf_size * 2) * sizeof(uint32_t *));
+    int i = 0;
+    for (i = 0; i < buf_size; ++i) {
+      tmp_ptrs[i] = ptrs[i];
+    }
+    buf_size = buf_size * 2;
+    free(ptrs);
+    ptrs = tmp_ptrs;
+  }
+  ptrs[size - 1] = ptr;
+}
+
+void ValRearmTasks::exec(uint32_t increment, uint32_t src_offset,
+                         uint32_t dst_offset) {
+  for (int i = 0; i < size; ++i) {
+    ptrs[i][dst_offset] = htonl(ntohl(ptrs[i][src_offset]) + increment);
+  }
+}
+
+void RearmTasks::exec(uint32_t offset, int phase, int dups) {
+  uint32_t src_offset = phase * offset;
+  uint32_t dst_offset = ((phase + 1) % dups) * offset;
+  for (MapIt it = this->map.begin(); it != map.end(); ++it) {
+    it->second.exec(it->first, src_offset, dst_offset);
+  }
+}
+
+void RearmTasks::add(uint32_t *ptr, int inc) {
+  // MapIt it =  map.find(inc);
+  // if (it != map.end()){
+  //	map[inc].add(ptr);
+  //}
+  map[inc].add(ptr);
+}
+
 cq_ctx::cq_ctx(struct ibv_cq *cq, size_t num_of_cqes) {
   this->cmpl_cnt = 0;
   int ret;
@@ -45,6 +121,10 @@ cq_ctx::cq_ctx(struct ibv_cq *cq, size_t num_of_cqes) {
 
   ret = mlx5dv_init_obj(&dv_obj, MLX5DV_OBJ_CQ);
   this->cqes = num_of_cqes;
+}
+
+cq_ctx::~cq_ctx() { 
+  free(this->cq); 
 }
 
 qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
@@ -116,40 +196,6 @@ qp_ctx::~qp_ctx() {
   free(this->cq);
 }
 
-cq_ctx::~cq_ctx() { free(this->cq); }
-
-ValRearmTasks::ValRearmTasks() {
-  size = 0;
-  buf_size = 4;
-  ptrs = (uint32_t **)malloc(buf_size * sizeof(uint32_t *));
-}
-
-ValRearmTasks::~ValRearmTasks() { free(ptrs); }
-
-void ValRearmTasks::add(uint32_t *ptr) {
-  ++size;
-  if (size > buf_size) {
-    uint32_t **tmp_ptrs =
-        (uint32_t **)malloc((buf_size * 2) * sizeof(uint32_t *));
-    int i = 0;
-    for (i = 0; i < buf_size; ++i) {
-      tmp_ptrs[i] = ptrs[i];
-    }
-    buf_size = buf_size * 2;
-    free(ptrs);
-    ptrs = tmp_ptrs;
-  }
-  ptrs[size - 1] = ptr;
-}
-
-void RearmTasks::add(uint32_t *ptr, int inc) {
-  // MapIt it =  map.find(inc);
-  // if (it != map.end()){
-  //	map[inc].add(ptr);
-  //}
-  map[inc].add(ptr);
-}
-
 int qp_ctx::poll() {
 
   // The following is very similar to the function:
@@ -210,34 +256,7 @@ void qp_ctx::db(uint32_t k) {
   pci_store_fence();
 }
 
-static inline void mlx5dv_set_remote_data_seg(struct mlx5_wqe_raddr_seg *seg,
-                                              uint64_t addr, uint32_t rkey) {
-  seg->raddr = htobe64(addr);
-  seg->rkey = htonl(rkey);
-  seg->reserved = 0;
-}
-
-static void set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op,
-                               uint8_t type, uint8_t chunks,
-                               uint16_t num_vectors) {
-  vseg->calc_operation = htobe32(op << 24);
-  vseg->options = htobe32(type << 24 |
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-                          1UL << 22 |
-#elif __BYTE_ORDER == __BIG_ENDIAN
-#else
-#error __BYTE_ORDER is neither __LITTLE_ENDIAN nor __BIG_ENDIAN
-#endif
-                          chunks << 16 | num_vectors);
-}
-
-static inline void cd_set_wait(struct mlx5_wqe_coredirect_seg *seg,
-                               uint32_t index, uint32_t number) {
-  seg->index = htonl(index);
-  seg->number = htonl(number);
-}
-
-void qp_ctx::sendCredit() {
+void qp_ctx::send_credit() {
   struct mlx5_wqe_ctrl_seg *ctrl;
   struct mlx5_wqe_data_seg *dseg;
   const uint8_t ds = 1;
@@ -270,7 +289,7 @@ void qp_ctx::write(const struct ibv_sge *local, const struct ibv_sge *remote) {
   pair->cmpl_cnt += 1;
 }
 
-void qp_ctx::writeCmpl(const struct ibv_sge *local,
+void qp_ctx::write_cmpl(const struct ibv_sge *local,
                        const struct ibv_sge *remote) {
   struct mlx5_wqe_ctrl_seg *ctrl;
   struct mlx5_wqe_raddr_seg *rseg;
@@ -324,7 +343,6 @@ void qp_ctx::reduce_write(const struct ibv_sge *local,
 void qp_ctx::reduce_write_cmpl(const struct ibv_sge *local,
                                const struct ibv_sge *remote,
                                uint16_t num_vectors, uint8_t op, uint8_t type) {
-
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
   struct mlx5_wqe_raddr_seg *rseg;      // 1
   struct mlx5_wqe_vectorcalc_seg *vseg; // 2
@@ -353,7 +371,6 @@ void qp_ctx::reduce_write_cmpl(const struct ibv_sge *local,
   pair->cmpl_cnt += 1;
 }
 
-#define CE 0
 
 void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
@@ -464,7 +481,6 @@ void qp_ctx::pad(int half) {
 }
 
 void qp_ctx::fin() {
-  int wqe_count = qp->sq.wqe_cnt;
   int pad_size = 8;
   int target_count = this->wqes;
 
@@ -498,32 +514,17 @@ void qp_ctx::rearm() {
   phase = (phase + 1) % this->number_of_duplicates;
 }
 
-void RearmTasks::exec(uint32_t offset, int phase, int dups) {
-  uint32_t src_offset = phase * offset;
-  uint32_t dst_offset = ((phase + 1) % dups) * offset;
-  for (MapIt it = this->map.begin(); it != map.end(); ++it) {
-    it->second.exec(it->first, src_offset, dst_offset);
-  }
-}
-
-void ValRearmTasks::exec(uint32_t increment, uint32_t src_offset,
-                         uint32_t dst_offset) {
-  for (int i = 0; i < size; ++i) {
-    ptrs[i][dst_offset] = htonl(ntohl(ptrs[i][src_offset]) + increment);
-  }
-}
-
-void qp_ctx::printSq() {
+void qp_ctx::print_sq() {
   fprintf(stderr, "Sq %lu: %dX%d\n", qpn, qp->sq.stride, qp->sq.wqe_cnt);
   print_buffer(this->qp->sq.buf, qp->sq.stride * qp->sq.wqe_cnt);
 }
 
-void qp_ctx::printRq() {
+void qp_ctx::print_rq() {
   fprintf(stderr, "Rq:\n");
   print_buffer(this->qp->rq.buf, qp->rq.stride * qp->rq.wqe_cnt);
 }
 
-void qp_ctx::printCq() {
+void qp_ctx::print_cq() {
   fprintf(stderr, "Cq %u:\n", cq->cqn);
   print_buffer(this->cq->buf, cq->cqe_size * cq->cqe_cnt);
   if (this->scq) {

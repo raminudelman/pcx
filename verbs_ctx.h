@@ -112,12 +112,21 @@ public:
   size_t maxMemic;
 };
 
-typedef struct peer_addr {
+typedef struct peer_addr { // TODO: Change struct name to somthing more informative
   int lid;
   int qpn;
   int psn;
   union ibv_gid gid;
 } peer_addr_t;
+
+typedef struct rd_peer_info {
+  uintptr_t buf;
+  union {
+    uint32_t rkey;
+    uint32_t lkey;
+  };
+  peer_addr_t addr;
+} rd_peer_info_t;
 
 int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr);
 int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp);

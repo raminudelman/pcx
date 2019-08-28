@@ -32,16 +32,6 @@
 #pragma once
 
 #include "udma_barrier.h"
-
-extern "C" {
-#include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
-// Needed for:
-//     mlx5dv_set_ctrl_seg
-//     mlx5dv_set_data_seg
-//     mlx5dv_set_remote_data_seg
-#include <infiniband/mlx5dv.h>
-}
-
 #include "pcx_mem.h"
 
 #include <inttypes.h>
@@ -53,6 +43,8 @@ extern "C" {
 
 #define memory_store_fence() asm volatile("" ::: "memory")
 #define pci_store_fence() asm volatile("sfence" ::: "memory")
+
+#define CE 0 // TODO: Why is this value is the correct value?
 
 enum mlx5dv_vector_calc_op {
   MLX5DV_VECTOR_CALC_OP_NOP = 0,
@@ -86,12 +78,6 @@ enum mlx5dv_vector_calc_chunks { // TODO: Check if used somewhere and if not whe
   MLX5DV_VECTOR_CALC_CHUNK_8192,
   MLX5DV_VECTOR_CALC_CHUNK_NUMBER
 };
-
-typedef struct AKL { // Address Key Length // TODO: Check if used. If not consider deleting.
-  uint64_t addr;
-  uint32_t key;
-  uint32_t len;
-} Akl;
 
 struct mlx5_wqe_coredirect_seg {
   uint64_t rsvd;
@@ -193,19 +179,22 @@ public:
   void db(uint32_t k);
 
   // Return *all* the credits to peer QP
-  void sendCredit();
+  void send_credit();
+
   void write(const struct ibv_sge *local, const struct ibv_sge *remote);
   void write(NetMem *local, NetMem *remote) {
     write(local->sg(), remote->sg());
   };
-  void write(NetMem *local, RefMem remote) { write(local->sg(), remote.sg()); };
-
-  void writeCmpl(const struct ibv_sge *local, const struct ibv_sge *remote);
-  void writeCmpl(NetMem *local, NetMem *remote) {
-    writeCmpl(local->sg(), remote->sg());
+  void write(NetMem *local, RefMem remote) { 
+    write(local->sg(), remote.sg()); 
   };
-  void writeCmpl(NetMem *local, RefMem remote) {
-    writeCmpl(local->sg(), remote.sg());
+
+  void write_cmpl(const struct ibv_sge *local, const struct ibv_sge *remote);
+  void write_cmpl(NetMem *local, NetMem *remote) {
+    write_cmpl(local->sg(), remote->sg());
+  };
+  void write_cmpl(NetMem *local, RefMem remote) {
+    write_cmpl(local->sg(), remote.sg());
   };
 
   void reduce_write(const struct ibv_sge *local, const struct ibv_sge *remote,
@@ -243,17 +232,22 @@ public:
 
   void rearm();
 
-  void printSq();
-  void printRq();
-  void printCq();
+  void print_sq();
+  void print_rq();
+  void print_cq();
 
-  void setPair(qp_ctx *qp) { this->pair = qp; };
+  void set_pair(qp_ctx *qp) { 
+    this->pair = qp; 
+  };
 
+  // Holds the peer's QP.
   qp_ctx *pair; // TODO: Rename this to "peer"
 
   cq_ctx *scq;
 
-  uint32_t get_poll_cnt() { return this->poll_cnt; };
+  uint32_t get_poll_cnt() { 
+    return this->poll_cnt; 
+  };
 
 private:
   uint32_t write_cnt;
@@ -276,5 +270,3 @@ private:
   size_t cqes;
   volatile struct cqe64 *cur_cqe;
 };
-int cd_nop(struct mlx5dv_qp *qp, uint16_t send_cnt, uint64_t qpn,
-           size_t num_pad, int signal);

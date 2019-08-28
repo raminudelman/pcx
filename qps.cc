@@ -1,4 +1,5 @@
 
+// TODO: Add license
 #include "qps.h"
 
 PCX_ERROR(QPCreateFailed);
@@ -14,31 +15,43 @@ CommGraph::CommGraph(VerbCtx *vctx) : ctx(vctx), mqp(NULL), iq(), qp_cnt(0) {
   mqp = new ManagementQp(this);
 }
 
+CommGraph::~CommGraph() { 
+  delete (mqp); 
+}
+
 void CommGraph::regQp(PcxQp *qp) {
   qps.push_back(qp);
   qp->id = qp_cnt;
   ++qp_cnt;
 }
 
-void CommGraph::enqueue(LambdaInstruction &ins) { iq.push(std::move(ins)); }
+void CommGraph::enqueue(LambdaInstruction &ins) { 
+  iq.push(std::move(ins)); 
+}
 
-void CommGraph::wait(PcxQp *slave_qp) { mqp->cd_wait(slave_qp); }
+void CommGraph::wait(PcxQp *slave_qp) { 
+  mqp->cd_wait(slave_qp); 
+}
 
-void CommGraph::wait_send(PcxQp *slave_qp) { mqp->cd_wait_send(slave_qp); }
+void CommGraph::wait_send(PcxQp *slave_qp) { 
+  mqp->cd_wait_send(slave_qp); 
+}
 
-void CommGraph::db() { mqp->qp->db(); }
+void CommGraph::db() { 
+  mqp->qp->db(); 
+}
 
 void CommGraph::finish() {
   for (GraphQpsIt it = qps.begin(); it != qps.end(); ++it) {
     (*it)->init();
   }
-  PRINT("Writing Wqes..");
+  PRINT("Starting to write WQEs");
   while (!iq.empty()) {
     LambdaInstruction &instruction = iq.front();
     instruction();
     iq.pop();
   }
-  PRINT("Finalizing...");
+  PRINT("Finalizing");
   for (GraphQpsIt it = qps.begin(); it != qps.end(); ++it) {
     (*it)->fin();
   }
@@ -47,25 +60,41 @@ void CommGraph::finish() {
   ctx->mtx.unlock();
 }
 
-CommGraph::~CommGraph() { delete (mqp); }
-
-void PcxQp::db() { this->qp->db(); }
-
-void PcxQp::db(uint32_t k) { this->qp->db(k); }
-
-void PcxQp::poll() { this->qp->poll(); }
-
-void PcxQp::print() {
-  this->qp->printSq();
-  this->qp->printCq();
+PcxQp::PcxQp(CommGraph *cgraph)
+    : wqe_count(0), cqe_count(0), scqe_count(0), recv_enables(0),
+      initiated(false), graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
+      ibcq(NULL), ibscq(NULL) {
+  cgraph->regQp(this);
 }
 
-void PcxQp::fin() { this->qp->fin(); }
+PcxQp::~PcxQp() {
+}
 
-void PcxQp::sendCredit() {
+void PcxQp::db() { 
+  this->qp->db(); 
+}
+
+void PcxQp::db(uint32_t k) { 
+  this->qp->db(k); 
+}
+
+void PcxQp::poll() { 
+  this->qp->poll(); 
+}
+
+void PcxQp::print() {
+  this->qp->print_sq();
+  this->qp->print_cq();
+}
+
+void PcxQp::fin() { 
+  this->qp->fin(); 
+}
+
+void PcxQp::send_credit() {
   ++wqe_count;
   ++pair->cqe_count;
-  LambdaInstruction lambda = [this]() { qp->sendCredit(); };
+  LambdaInstruction lambda = [this]() { qp->send_credit(); };
   graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);
 }
@@ -84,7 +113,7 @@ void PcxQp::write(NetMem *local, NetMem *remote) {
   graph->mqp->cd_send_enable(this);
 }
 
-void PcxQp::writeCmpl(NetMem *local, NetMem *remote) {
+void PcxQp::write_cmpl(NetMem *local, NetMem *remote) {
   ++wqe_count;
   ++this->pair->cqe_count;
   if (has_scq) {
@@ -97,7 +126,7 @@ void PcxQp::writeCmpl(NetMem *local, NetMem *remote) {
   struct ibv_sge rsg = (*remote->sg());
 
   LambdaInstruction lambda = [this, lsg, rsg]() {
-    this->qp->writeCmpl(&lsg, &rsg);
+    this->qp->write_cmpl(&lsg, &rsg);
   };
 
   this->graph->enqueue(lambda);
@@ -114,15 +143,6 @@ void PcxQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
   this->graph->enqueue(lambda);
   graph->mqp->cd_send_enable(this);
 }
-
-PcxQp::PcxQp(CommGraph *cgraph)
-    : wqe_count(0), cqe_count(0), scqe_count(0), recv_enables(0),
-      initiated(false), graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
-      ibcq(NULL), ibscq(NULL) {
-  cgraph->regQp(this);
-}
-
-PcxQp::~PcxQp() {}
 
 struct ibv_qp *PcxQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
                             uint16_t send_wq_size, uint16_t recv_rq_size,
@@ -194,6 +214,36 @@ struct ibv_cq *PcxQp::cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context,
   return cq;
 }
 
+ManagementQp::ManagementQp(CommGraph *cgraph)
+    : PcxQp(cgraph), last_qp(0), has_stack(false) {
+  this->pair = this;
+  this->has_scq = false;
+}
+
+ManagementQp::~ManagementQp() {
+  delete (qp);
+  ibv_destroy_qp(ibqp);
+  ibv_destroy_cq(ibcq);
+  this->ibscq = NULL;
+}
+
+void ManagementQp::init() {
+
+  if (!ctx) {
+    PERR(MissingContext);
+  }
+
+  this->ibcq = cd_create_cq(graph->ctx, cqe_count);
+  if (!this->ibcq) {
+    PERR(CQCreateFailed);
+  }
+
+  this->ibqp = create_management_qp(this->ibcq, ctx, wqe_count);
+  this->qp = new qp_ctx(this->ibqp, this->ibcq, wqe_count, cqe_count);
+  initiated = true;
+
+  PRINT("Management QP initiated");
+}
 
 void ManagementQp::cd_send_enable(PcxQp *slave_qp) {
   ++wqe_count;
@@ -227,37 +277,6 @@ void ManagementQp::cd_wait_send(PcxQp *slave_qp) {
     this->qp->cd_wait_send(slave_qp->qp);
   };
   this->graph->enqueue(lambda);
-}
-
-ManagementQp::ManagementQp(CommGraph *cgraph)
-    : PcxQp(cgraph), last_qp(0), has_stack(false) {
-  this->pair = this;
-  this->has_scq = false;
-}
-
-void ManagementQp::init() {
-
-  if (!ctx) {
-    PERR(MissingContext);
-  }
-
-  this->ibcq = cd_create_cq(graph->ctx, cqe_count);
-  if (!this->ibcq) {
-    PERR(CQCreateFailed);
-  }
-
-  this->ibqp = create_management_qp(this->ibcq, ctx, wqe_count);
-  this->qp = new qp_ctx(this->ibqp, this->ibcq, wqe_count, cqe_count);
-  initiated = true;
-
-  PRINT("Management QP initiated");
-}
-
-ManagementQp::~ManagementQp() {
-  delete (qp);
-  ibv_destroy_qp(ibqp);
-  ibv_destroy_cq(ibcq);
-  this->ibscq = NULL;
 }
 
 struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
@@ -356,11 +375,16 @@ struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *ve
   return _mq;
 }
 
-
 LoopbackQp::LoopbackQp(CommGraph *cgraph) : PcxQp(cgraph) {
   this->pair = this;
   this->has_scq = false;
   cgraph->mqp->cd_recv_enable(this);
+}
+
+LoopbackQp::~LoopbackQp() {
+  delete (qp);
+  ibv_destroy_qp(ibqp);
+  ibv_destroy_cq(ibcq);
 }
 
 void LoopbackQp::init() {
@@ -380,21 +404,184 @@ void LoopbackQp::init() {
   PRINT("Loopback RC QP initiated");
 }
 
-LoopbackQp::~LoopbackQp() {
-  delete (qp);
-  ibv_destroy_qp(ibqp);
-  ibv_destroy_cq(ibcq);
-}
-
-RingQp::RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
-               uint32_t peer, uint32_t tag, PipeMem *incoming)
-    : RcQp(cgraph, incoming) {
+DoublingQp::DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
+                       uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
+    : PcxQp(cgraph), incoming(incomingBuffer) {
+  this->pair = this;
   this->has_scq = true;
   cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
 
   exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
   barrier = std::bind(func, comm, _1, _2, _3, peer, tag + ((unsigned int) 0xf000) );
+}
+
+DoublingQp::~DoublingQp() {
+  delete (remote);
+  delete (qp);
+  ibv_destroy_qp(ibqp);
+  ibv_destroy_cq(ibcq);
+}
+
+void DoublingQp::init() {
+
+  ibcq = cd_create_cq(ctx, cqe_count, NULL);
+  if (!ibcq) {
+    PERR(CQCreateFailed);
+  }
+
+  ibscq = cd_create_cq(ctx, scqe_count, NULL);
+  if (!ibscq) {
+    PERR(CQCreateFailed);
+  }
+
+  ibqp = rc_qp_create(ibcq, ctx, wqe_count, cqe_count, ibscq);
+
+  if (!ibqp) {
+    PERR(QPCreateFailed);
+  }
+
+  rd_peer_info_t local_info, remote_info;
+  
+  local_info.buf = (uintptr_t)incoming->sg()->addr;
+  local_info.rkey = incoming->getMr()->rkey;
+  rc_qp_get_addr(ibqp, &local_info.addr);
+
+  ctx->mtx.unlock();
+  exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
+  ctx->mtx.lock();
+
+  /*
+    fprintf(stderr,"sent: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid = %u,
+    psn = %ld\n", local_info.buf,
+                  local_info.rkey,
+    local_info.addr.qpn,local_info.addr.lid,local_info.addr.gid,local_info.addr.psn
+    );
+    fprintf(stderr,"recv: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid = %u,
+    psn = %ld\n", remote_info.buf, remote_info.rkey, remote_info.addr.qpn ,
+                                                          remote_info.addr.lid,
+    remote_info.addr.gid, remote_info.addr.psn );
+
+  */
+
+  remote = new RemoteMem(remote_info.buf, remote_info.rkey);
+  rc_qp_connect(&remote_info.addr, ibqp);
+
+  //barrier
+  int ack;
+  ctx->mtx.unlock();
+  barrier((void*) &ack, (void*) &ack, sizeof(int));
+  ctx->mtx.lock();
+
+  qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
+  initiated = true;
+
+  PRINT("Doubling RC QP initiated");
+}
+
+void DoublingQp::write(NetMem *local) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+  LambdaInstruction lambda = [this, local]() {
+    this->qp->write(local, this->remote);
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+void DoublingQp::write_cmpl(NetMem *local) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+
+  LambdaInstruction lambda = [this, local]() {
+    this->qp->write_cmpl(local, this->remote);
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+RcQp::~RcQp() {
+  if (remote) {
+    delete (remote);
+  }
+}
+
+void RcQp::write(NetMem *local, size_t pos) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+
+  struct ibv_sge lsg = (*local->sg());
+
+  LambdaInstruction lambda = [this, lsg, pos]() {
+    this->qp->write(&lsg, (*this->remote)[pos].sg());
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+void RcQp::write_cmpl(NetMem *local, size_t pos) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+  if (has_scq) {
+    ++scqe_count;
+  } else {
+    ++cqe_count;
+  }
+
+  struct ibv_sge lsg = (*local->sg());
+
+  LambdaInstruction lambda = [this, lsg, pos]() {
+    this->qp->write_cmpl(&lsg, (*this->remote)[pos].sg());
+  };
+
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+void RcQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
+                        uint8_t op, uint8_t type) {
+  wqe_count += 2;
+  ++this->pair->cqe_count;
+  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
+    RefMem ref = ((*this->remote)[pos]);
+    this->qp->reduce_write(local, &ref, num_vectors, op, type);
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+void RcQp::reduce_write_cmpl(NetMem *local, size_t pos, uint16_t num_vectors,
+                             uint8_t op, uint8_t type) {
+  wqe_count += 2;
+  ++this->pair->cqe_count;
+  if (has_scq) {
+    ++scqe_count;
+  } else {
+    ++cqe_count;
+  }
+  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
+    RefMem ref = ((*this->remote)[pos]);
+    this->qp->reduce_write_cmpl(local, &ref, num_vectors, op, type);
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+RingQp::RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
+               uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
+    : RcQp(cgraph, incomingBuffer) {
+  this->has_scq = true;
+  cgraph->mqp->cd_recv_enable(this);
+  using namespace std::placeholders;
+
+  exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
+  barrier = std::bind(func, comm, _1, _2, _3, peer, tag + ((unsigned int) 0xf000) );
+}
+
+RingQp::~RingQp() {
+  delete (qp);
+  ibv_destroy_qp(ibqp);
+  ibv_destroy_cq(ibcq);
 }
 
 void RingQp::init() {
@@ -455,19 +642,13 @@ void RingQp::init() {
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
 
   if (this->pair->qp) {
-    this->pair->qp->setPair(this->qp);
-    this->qp->setPair(this->pair->qp);
+    this->pair->qp->set_pair(this->qp);
+    this->qp->set_pair(this->pair->qp);
   }
 
   initiated = true;
 
   PRINT("Ring RC QP initiated");
-}
-
-RingQp::~RingQp() {
-  delete (qp);
-  ibv_destroy_qp(ibqp);
-  ibv_destroy_cq(ibcq);
 }
 
 RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
@@ -483,177 +664,11 @@ RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
     this->left = new RingQp(cgraph, func, comm, leftRank, tag1, incoming);
     this->right = new RingQp(cgraph, func, comm, rightRank, tag2, incoming);
   }
-  right->setPair(left);
-  left->setPair(right);
+  right->set_pair(left);
+  left->set_pair(right);
 }
 
 RingPair::~RingPair() {
   delete (right);
   delete (left);
 }
-
-void RcQp::write(NetMem *local, size_t pos) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-
-  struct ibv_sge lsg = (*local->sg());
-
-  LambdaInstruction lambda = [this, lsg, pos]() {
-    this->qp->write(&lsg, (*this->remote)[pos].sg());
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void RcQp::writeCmpl(NetMem *local, size_t pos) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-  if (has_scq) {
-    ++scqe_count;
-  } else {
-    ++cqe_count;
-  }
-
-  struct ibv_sge lsg = (*local->sg());
-
-  LambdaInstruction lambda = [this, lsg, pos]() {
-    this->qp->writeCmpl(&lsg, (*this->remote)[pos].sg());
-  };
-
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void RcQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
-                        uint8_t op, uint8_t type) {
-  wqe_count += 2;
-  ++this->pair->cqe_count;
-  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
-    RefMem ref = ((*this->remote)[pos]);
-    this->qp->reduce_write(local, &ref, num_vectors, op, type);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void RcQp::reduce_write_cmpl(NetMem *local, size_t pos, uint16_t num_vectors,
-                             uint8_t op, uint8_t type) {
-  wqe_count += 2;
-  ++this->pair->cqe_count;
-  if (has_scq) {
-    ++scqe_count;
-  } else {
-    ++cqe_count;
-  }
-  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos]() {
-    RefMem ref = ((*this->remote)[pos]);
-    this->qp->reduce_write_cmpl(local, &ref, num_vectors, op, type);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-RcQp::~RcQp() {
-  if (remote) {
-    delete (remote);
-  }
-}
-
-DoublingQp::DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
-                       uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
-    : PcxQp(cgraph), incoming(incomingBuffer) {
-  this->pair = this;
-  this->has_scq = true;
-  cgraph->mqp->cd_recv_enable(this);
-  using namespace std::placeholders;
-
-  exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
-  barrier = std::bind(func, comm, _1, _2, _3, peer, tag + ((unsigned int) 0xf000) );
-}
-
-void DoublingQp::init() {
-
-  ibcq = cd_create_cq(ctx, cqe_count, NULL);
-  if (!ibcq) {
-    PERR(CQCreateFailed);
-  }
-
-  ibscq = cd_create_cq(ctx, scqe_count, NULL);
-  if (!ibscq) {
-    PERR(CQCreateFailed);
-  }
-
-  ibqp = rc_qp_create(ibcq, ctx, wqe_count, cqe_count, ibscq);
-
-  if (!ibqp) {
-    PERR(QPCreateFailed);
-  }
-
-  rd_peer_info_t local_info, remote_info;
-  local_info.buf = (uintptr_t)incoming->sg()->addr;
-  local_info.rkey = incoming->getMr()->rkey;
-  rc_qp_get_addr(ibqp, &local_info.addr);
-
-  ctx->mtx.unlock();
-  exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
-  ctx->mtx.lock();
-
-  /*
-    fprintf(stderr,"sent: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid = %u,
-    psn = %ld\n", local_info.buf,
-                  local_info.rkey,
-    local_info.addr.qpn,local_info.addr.lid,local_info.addr.gid,local_info.addr.psn
-    );
-    fprintf(stderr,"recv: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid = %u,
-    psn = %ld\n", remote_info.buf, remote_info.rkey, remote_info.addr.qpn ,
-                                                          remote_info.addr.lid,
-    remote_info.addr.gid, remote_info.addr.psn );
-
-  */
-
-  remote = new RemoteMem(remote_info.buf, remote_info.rkey);
-  rc_qp_connect(&remote_info.addr, ibqp);
-
-  //barrier
-  int ack;
-  ctx->mtx.unlock();
-  barrier((void*) &ack, (void*) &ack, sizeof(int));
-  ctx->mtx.lock();
-
-  qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
-  initiated = true;
-
-  PRINT("Doubling RC QP initiated");
-}
-
-void DoublingQp::write(NetMem *local) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-  LambdaInstruction lambda = [this, local]() {
-    this->qp->write(local, this->remote);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void DoublingQp::writeCmpl(NetMem *local) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-
-  LambdaInstruction lambda = [this, local]() {
-    this->qp->writeCmpl(local, this->remote);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-DoublingQp::~DoublingQp() {
-  delete (remote);
-  delete (qp);
-  ibv_destroy_qp(ibqp);
-  ibv_destroy_cq(ibcq);
-}
-
-
-
-

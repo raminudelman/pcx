@@ -1,3 +1,4 @@
+// TODO: Add license 
 #pragma once
 
 #include "dv_mgr.h"
@@ -6,7 +7,11 @@
 #include <queue>
 #include <vector>
 
-enum cd_statuses { PCOLL_SUCCESS = 0, PCOLL_ERROR = 1 };
+// CORE-Direct (CD) status 
+enum cd_statuses { 
+  PCOLL_SUCCESS = 0, 
+  PCOLL_ERROR = 1 
+};
 
 typedef std::function<void()> LambdaInstruction;
 typedef std::queue<LambdaInstruction> InsQueue;
@@ -17,13 +22,11 @@ class ManagementQp;
 typedef std::vector<PcxQp *> GraphQps;
 typedef GraphQps::iterator GraphQpsIt;
 
-/* 
- * Communication Graph class.
- * Holds all the communication graph of a collective operation.
- * The Communication Graph holds a managment QP which acts as a 
- * managment unit which in charge of executing all the operation that
- * where defined in advance. 
- */ 
+// Communication Graph class.
+// Holds all the communication graph of a collective operation.
+// The Communication Graph holds a management QP which acts as a 
+// management unit which in charge of executing all the operation that
+// where defined in advance. 
 class CommGraph {
 public:
   CommGraph(VerbCtx *vctx);
@@ -58,9 +61,9 @@ public:
   virtual ~PcxQp() = 0;
   virtual void init() = 0;
   void fin();
-  void sendCredit();
+  void send_credit();
   void write(NetMem *local, NetMem *remote);
-  void writeCmpl(NetMem *local, NetMem *remote);
+  void write_cmpl(NetMem *local, NetMem *remote);
   void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
                     uint8_t op, uint8_t type);
 
@@ -73,7 +76,7 @@ public:
   int wqe_count;
 
   // Holds how many CQE are expected to be generated during a single collective
-  //  operation 
+  // operation 
   int cqe_count;
 
   int scqe_count;
@@ -82,15 +85,27 @@ public:
   uint16_t id;
   qp_ctx *qp;
 
+  void set_pair(PcxQp *pair_) { 
+    this->pair = pair_; 
+  };
+
 protected:
   CommGraph *graph;
+
   struct ibv_qp *ibqp;
 
-  // Completion Queue
+  // Completion Queue. Initialized during init()
+  // Used as the Completion Queue of both Receive Queue and Send Queue of the
+  // QP unless a dedicated Send Completion Queue is specified for the Send
+  // Queue of the QP. In case a Send Completion Queue, this Completion Queue
+  // is used only for the Receive Queue of the QP.
   struct ibv_cq *ibcq;
 
+  // Completion Queue for Send Queue.
   struct ibv_cq *ibscq;
-  PcxQp *pair;
+
+  PcxQp *pair; // TODO: Change this name to "peer"
+
   bool initiated;
   bool has_scq;
   VerbCtx *ctx;
@@ -134,66 +149,49 @@ public:
   void init();
 };
 
-/*
-typedef enum PCX_P2P_RESULT{
-  PCX_P2P_SUCCESS,
-  PCX_P2P_FAILURE,
-}*/
-
-typedef struct rd_peer_info {
-  uintptr_t buf;
-  union {
-    uint32_t rkey;
-    uint32_t lkey;
-  };
-  peer_addr_t addr;
-} rd_peer_info_t;
-
 typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *,
                                  size_t, uint32_t, uint32_t);
-typedef std::function<void(volatile void *, volatile void *, size_t)>
-    LambdaExchange;
+typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange;
 
-class RcQp : public PcxQp {
+
+class DoublingQp : public PcxQp { // TODO: Move to new file pcx_doubling.h
 public:
-  RcQp(CommGraph *cgraph, PipeMem *incoming_)
-      : PcxQp(cgraph), incoming(incoming_){};
+  DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
+  ~DoublingQp();
+  void init();
+  void write(NetMem *local);
+  void write_cmpl(NetMem *local);
+
+  LambdaExchange exchange;
+  LambdaExchange barrier;
+
+protected:
+  RemoteMem *remote;
+  NetMem *incoming;
+};
+
+class RcQp : public PcxQp { // TODO: This is used only for RingQp.. maybe need to delete this class and use only RingQp which will inherit PcxQp directly.
+public:
+  RcQp(CommGraph *cgraph, PipeMem *incomingBuffer)
+      : PcxQp(cgraph), incoming(incomingBuffer) {};
   virtual ~RcQp();
 
   void write(NetMem *local, size_t pos = 0);
-  void writeCmpl(NetMem *local, size_t pos = 0);
+  void write_cmpl(NetMem *local, size_t pos = 0);
   void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
                     uint8_t type);
   void reduce_write_cmpl(NetMem *local, size_t pos, uint16_t num_vectors,
                          uint8_t op, uint8_t type);
-
-  void setPair(PcxQp *pair_) { this->pair = pair_; };
 
 protected:
   PipeMem *remote;
   PipeMem *incoming;
 };
 
-class DoublingQp : public PcxQp {
-public:
-  DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
-             uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
-  ~DoublingQp();
-  void init();
-  void write(NetMem *local);
-  void writeCmpl(NetMem *local);
-
-  RemoteMem *remote;
-  NetMem *incoming;
-
-  LambdaExchange exchange;
-  LambdaExchange barrier;
-};
-
-class RingQp : public RcQp {
+class RingQp : public RcQp { // TODO: Move to new file pcx_ring.h
 public:
   RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
-         uint32_t tag, PipeMem *incoming);
+         uint32_t tag, PipeMem *incomingBuffer);
 
   void init();
   ~RingQp();
