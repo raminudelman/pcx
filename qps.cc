@@ -464,61 +464,9 @@ void DoublingQp::write(NetMem *local, bool require_cmpl) {
   graph->mqp->cd_send_enable(this);
 }
 
-RcQp::~RcQp() {
-  if (remote) {
-    delete (remote);
-  }
-}
-
-void RcQp::write(NetMem *local, size_t pos, bool require_cmpl) {
-  ++wqe_count;
-  ++this->pair->cqe_count;
-
-  if (require_cmpl) {
-    if (has_scq) {
-      ++scqe_count;
-    } else {
-      ++cqe_count;
-    }
-  }
-
-  // TODO: Consider calling here the PcxQp::write(NetMem *local, RefMem *remote, bool require_cmpl); (Overload if this function does not exist)
-  struct ibv_sge lsg = (*local->sg());
-
-  LambdaInstruction lambda = [this, lsg, pos,require_cmpl]() {
-    this->qp->write(&lsg, (*this->remote)[pos].sg(), require_cmpl);
-  };
-
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-void RcQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
-                        uint8_t op, uint8_t type, bool require_cmpl) {
-  wqe_count += 2;
-  ++this->pair->cqe_count;
-
-  if (require_cmpl) {
-    if (has_scq) {
-      ++scqe_count;
-    } else {
-      ++cqe_count;
-    }
-  }
-
-  // TODO: Consider using PcxQp::reduce_write(NetMem *local, RefMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl). Added this function in case it does not exist
-
-  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos, require_cmpl]() {
-    RefMem ref = ((*this->remote)[pos]);
-    this->qp->reduce_write(local, &ref, num_vectors, op, type, require_cmpl);
-  };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
 RingQp::RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
                uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
-    : RcQp(cgraph, incomingBuffer) {
+    : PcxQp(cgraph), incoming(incomingBuffer) {
   this->has_scq = true;
   cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
@@ -598,6 +546,52 @@ void RingQp::init() {
   initiated = true;
 
   PRINT("Ring RC QP initiated");
+}
+
+void RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
+  }
+
+  // TODO: Consider calling here the PcxQp::write(NetMem *local, RefMem *remote, bool require_cmpl); (Overload if this function does not exist)
+  struct ibv_sge lsg = (*local->sg());
+
+  LambdaInstruction lambda = [this, lsg, pos,require_cmpl]() {
+    this->qp->write(&lsg, (*this->remote)[pos].sg(), require_cmpl);
+  };
+
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
+}
+
+void RingQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
+                        uint8_t op, uint8_t type, bool require_cmpl) {
+  wqe_count += 2;
+  ++this->pair->cqe_count;
+
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
+  }
+
+  // TODO: Consider using PcxQp::reduce_write(NetMem *local, RefMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl). Added this function in case it does not exist
+
+  LambdaInstruction lambda = [this, local, num_vectors, op, type, pos, require_cmpl]() {
+    RefMem ref = ((*this->remote)[pos]);
+    this->qp->reduce_write(local, &ref, num_vectors, op, type, require_cmpl);
+  };
+  this->graph->enqueue(lambda);
+  graph->mqp->cd_send_enable(this);
 }
 
 RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file

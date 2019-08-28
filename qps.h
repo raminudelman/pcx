@@ -155,15 +155,15 @@ public:
   void init();
 };
 
-typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *,
+typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *, // TODO: Move this to pcx_transport_qps
                                  size_t, uint32_t, uint32_t);
-typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange;
+typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange; // TODO: Move this to pcx_transport_qps
 
-
-class DoublingQp : public PcxQp { // TODO: Move to new file pcx_doubling.h
+class DoublingQp : public PcxQp { // TODO: Move to new file pcx_doubling.h // Create new QP type to be TransportQp and DoublingQp should inherit it
 public:
   DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
   ~DoublingQp();
+
   void init();
   void write(NetMem *local, bool require_cmpl);
 
@@ -175,30 +175,23 @@ protected:
   NetMem *incoming;
 };
 
-class RcQp : public PcxQp { // TODO: This is used only for RingQp.. maybe need to delete this class and use only RingQp which will inherit PcxQp directly.
+class RingQp : public PcxQp { // TODO: Move to new file pcx_ring.h // Create new QP type to be TransportQp and RingQp should inherit it
 public:
-  RcQp(CommGraph *cgraph, PipeMem *incomingBuffer)
-      : PcxQp(cgraph), incoming(incomingBuffer) {};
-  virtual ~RcQp();
+  RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
+         uint32_t tag, PipeMem *incomingBuffer);
+  ~RingQp();
 
+  void init();
   void write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
   void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
                     uint8_t type, bool require_cmpl);
 
+  LambdaExchange exchange;
+  LambdaExchange barrier;
+
 protected:
   PipeMem *remote;
   PipeMem *incoming;
-};
-
-class RingQp : public RcQp { // TODO: Move to new file pcx_ring.h
-public:
-  RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
-         uint32_t tag, PipeMem *incomingBuffer);
-
-  void init();
-  ~RingQp();
-  LambdaExchange exchange;
-  LambdaExchange barrier;
 };
 
 class RingPair { // TODO: Move to new file pcx_ring.h
