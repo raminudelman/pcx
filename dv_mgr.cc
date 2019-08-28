@@ -196,6 +196,10 @@ qp_ctx::~qp_ctx() {
   free(this->cq);
 }
 
+void qp_ctx::set_pair(qp_ctx *qp) { 
+  this->pair = qp; 
+};
+
 int qp_ctx::poll() {
 
   // The following is very similar to the function:

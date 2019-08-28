@@ -215,9 +215,7 @@ public:
   void print_rq();
   void print_cq();
 
-  void set_pair(qp_ctx *qp) { 
-    this->pair = qp; 
-  };
+  void set_pair(qp_ctx *qp);
 
   // Holds the peer's QP.
   qp_ctx *pair; // TODO: Rename this to "peer"
