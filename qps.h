@@ -37,8 +37,7 @@ public:
   // Register a QP to the graph. 
   void regQp(PcxQp *qp);
   
-  void wait(PcxQp *slave_qp);
-  void wait_send(PcxQp *slave_qp);
+  void wait(PcxQp *slave_qp, bool wait_scq = false);
 
   void db();
 
@@ -134,8 +133,7 @@ class ManagementQp : public PcxQp {
 public:
   void cd_send_enable(PcxQp *slave_qp);
   void cd_recv_enable(PcxQp *slave_qp);
-  void cd_wait(PcxQp *slave_qp);
-  void cd_wait_send(PcxQp *slave_qp);
+  void cd_wait(PcxQp *slave_qp, bool wait_scq = false);
 
   ManagementQp(CommGraph *cgraph);
   ~ManagementQp();

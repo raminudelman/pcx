@@ -29,12 +29,8 @@ void CommGraph::enqueue(LambdaInstruction &ins) {
   iq.push(std::move(ins)); 
 }
 
-void CommGraph::wait(PcxQp *slave_qp) { 
-  mqp->cd_wait(slave_qp); 
-}
-
-void CommGraph::wait_send(PcxQp *slave_qp) { 
-  mqp->cd_wait_send(slave_qp); 
+void CommGraph::wait(PcxQp *slave_qp, bool wait_scq) { 
+  mqp->cd_wait(slave_qp, wait_scq); 
 }
 
 void CommGraph::db() { 
@@ -248,18 +244,10 @@ void ManagementQp::cd_recv_enable(
   ++recv_enables;
 }
 
-void ManagementQp::cd_wait(PcxQp *slave_qp) {
+void ManagementQp::cd_wait(PcxQp *slave_qp, bool wait_scq) {
   ++wqe_count;
-  LambdaInstruction lambda = [this, slave_qp]() {
-    this->qp->cd_wait(slave_qp->qp);
-  };
-  this->graph->enqueue(lambda);
-}
-
-void ManagementQp::cd_wait_send(PcxQp *slave_qp) {
-  ++wqe_count;
-  LambdaInstruction lambda = [this, slave_qp]() {
-    this->qp->cd_wait_send(slave_qp->qp);
+  LambdaInstruction lambda = [this, slave_qp, wait_scq]() {
+    this->qp->cd_wait(slave_qp->qp, wait_scq);
   };
   this->graph->enqueue(lambda);
 }

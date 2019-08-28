@@ -369,25 +369,12 @@ void qp_ctx::cd_recv_enable(qp_ctx *slave_qp) {
   write_cnt += 1;
 }
 
-void qp_ctx::cd_wait(qp_ctx *slave_qp) {
-  struct mlx5_wqe_ctrl_seg *ctrl;       // 1
-  struct mlx5_wqe_coredirect_seg *wseg; // 1
-  const uint8_t ds = 2;
-  int wqe_count = qp->sq.wqe_cnt;
-  ctrl =
-      (struct mlx5_wqe_ctrl_seg *)((char *)qp->sq.buf +
-                                   qp->sq.stride * ((write_cnt) % wqe_count));
-  mlx5dv_set_ctrl_seg(ctrl, (write_cnt), 0x0f, 0x00, qpn, CE, ds, 0, 0);
-  wseg = (struct mlx5_wqe_coredirect_seg *)(ctrl + 1);
-  cd_set_wait(wseg, (slave_qp->cmpl_cnt - 1), slave_qp->cq->cqn);
-  this->tasks.add((uint32_t *)&(wseg->index), slave_qp->cqes);
-  write_cnt += 1;
-}
-
-void qp_ctx::cd_wait_send(qp_ctx *slave_qp) {
-  if (!slave_qp->scq) {
-    this->cd_wait(slave_qp);
-    return;
+void qp_ctx::cd_wait(qp_ctx *slave_qp, bool wait_scq) {
+  if (wait_scq) {
+    if (!slave_qp->scq) {
+      this->cd_wait(slave_qp, false);
+      return;
+    }
   }
 
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
@@ -399,8 +386,11 @@ void qp_ctx::cd_wait_send(qp_ctx *slave_qp) {
                                    qp->sq.stride * ((write_cnt) % wqe_count));
   mlx5dv_set_ctrl_seg(ctrl, (write_cnt), 0x0f, 0x00, qpn, CE, ds, 0, 0);
   wseg = (struct mlx5_wqe_coredirect_seg *)(ctrl + 1);
-  cd_set_wait(wseg, (slave_qp->scq->cmpl_cnt - 1), slave_qp->scq->cq->cqn);
-  this->tasks.add((uint32_t *)&(wseg->index), slave_qp->scq->cqes);
+  uint32_t index = ((wait_scq) ? (slave_qp->scq->cmpl_cnt - 1) : (slave_qp->cmpl_cnt - 1));
+  uint32_t number = ((wait_scq) ?  slave_qp->scq->cq->cqn : slave_qp->cq->cqn);
+  cd_set_wait(wseg, index, number);
+  int cqes_inc = ((wait_scq) ? slave_qp->scq->cqes : slave_qp->cqes);
+  this->tasks.add((uint32_t *)&(wseg->index), cqes_inc);
   write_cnt += 1;
 }
 

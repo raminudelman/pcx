@@ -196,11 +196,8 @@ public:
   void cd_send_enable(qp_ctx *slave_qp);
   void cd_recv_enable(qp_ctx *slave_qp);
 
-  // Send 'wait' command on the CQ of the slave qp
-  void cd_wait(qp_ctx *slave_qp);
-
-  // Send 'wait' command on the SCQ of the slave qp
-  void cd_wait_send(qp_ctx *slave_qp); // TODO: Use cd_wait() and add an argument whether to wait on the CQ or on the SCQ
+  // Send 'wait' command on the CQ (or SCQ) of the slave qp
+  void cd_wait(qp_ctx *slave_qp, bool wait_scq = false);
 
   void nop(size_t num_pad);
 
