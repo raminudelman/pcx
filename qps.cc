@@ -223,7 +223,7 @@ void ManagementQp::init() {
   this->qp = new qp_ctx(this->ibqp, this->ibcq, wqe_count, cqe_count);
   initiated = true;
 
-  PRINT("Management QP initiated");
+  PRINT("ManagementQP initiated");
 }
 
 void ManagementQp::cd_send_enable(PcxQp *slave_qp) {
@@ -449,7 +449,7 @@ void DoublingQp::init() {
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
   initiated = true;
 
-  PRINT("Doubling RC QP initiated");
+  PRINT("DoublingQP initiated");
 }
 
 void DoublingQp::write(NetMem *local, bool require_cmpl) {
