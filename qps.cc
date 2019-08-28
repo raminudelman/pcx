@@ -58,7 +58,7 @@ void CommGraph::finish() {
 
 PcxQp::PcxQp(CommGraph *cgraph)
     : wqe_count(0), cqe_count(0), scqe_count(0), recv_enables(0),
-      initiated(false), graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
+      graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL),
       ibcq(NULL), ibscq(NULL), pair(this) {
   cgraph->regQp(this);
 }
@@ -224,7 +224,6 @@ void ManagementQp::init() {
 
   this->ibqp = create_management_qp(this->ibcq, ctx, wqe_count);
   this->qp = new qp_ctx(this->ibqp, this->ibcq, wqe_count, cqe_count);
-  initiated = true;
 
   PRINT("ManagementQP initiated");
 }
@@ -374,7 +373,6 @@ void LoopbackQp::init() {
   rc_qp_connect(&loopback_addr, ibqp);
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count);
   ibscq = NULL;
-  initiated = true;
 
   PRINT("Loopback RC QP initiated");
 }
@@ -448,7 +446,6 @@ void DoublingQp::init() {
   ctx->mtx.lock();
 
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
-  initiated = true;
 
   PRINT("DoublingQP initiated");
 }
@@ -543,8 +540,6 @@ void RingQp::init() {
     this->pair->qp->set_pair(this->qp);
     this->qp->set_pair(this->pair->qp);
   }
-
-  initiated = true;
 
   PRINT("RingQP initiated");
 }

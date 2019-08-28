@@ -112,7 +112,6 @@ protected:
 
   PcxQp *pair; // TODO: Change this name to "peer"
 
-  bool initiated;
   bool has_scq;
   VerbCtx *ctx;
 
