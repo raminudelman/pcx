@@ -136,7 +136,7 @@ qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
 qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
                size_t num_of_cqes) {
 
-  int ret;
+  int ret; // TODO: Not is use. Consider removing.
 
   struct mlx5dv_obj dv_obj = {};
   memset((void *)&dv_obj, 0, sizeof(struct mlx5dv_obj));
