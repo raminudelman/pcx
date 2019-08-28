@@ -202,8 +202,6 @@ public:
   // Send 'wait' command on the SCQ of the slave qp
   void cd_wait_send(qp_ctx *slave_qp); // TODO: Use cd_wait() and add an argument whether to wait on the CQ or on the SCQ
 
-  void cd_wait_signal(qp_ctx *slave_qp); // TODO: This is the same as cd_wait() + require_cmpl
-
   void nop(size_t num_pad);
 
   void pad(int half = 0);
