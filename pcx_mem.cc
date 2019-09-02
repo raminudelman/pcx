@@ -32,19 +32,6 @@
 
 #include "pcx_mem.h"
 
-PCX_ERROR(NotEnoughKLMs)
-PCX_ERROR(NoUMRKey)
-PCX_ERROR(CreateMRFailed)
-PCX_ERROR(UMR_PollFailed)
-PCX_ERROR(UMR_CompletionInError)
-PCX_ERROR_RES(UMR_PostFailed)
-PCX_ERROR(EmptyUMR)
-PCX_ERROR(MemoryNotSupported)
-PCX_ERROR(AllocateDeviceMemoryFailed)
-PCX_ERROR(AllocateMemoryFailed)
-PCX_ERROR(RegMrFailed)
-PCX_ERROR(ExpRegMrFailed)
-
 NetMem::~NetMem() {}
 
 HostMem::HostMem(size_t length, VerbCtx *ctx) {

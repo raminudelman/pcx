@@ -61,19 +61,19 @@ void VerbCtx::remInstance() {
 
 VerbCtx::~VerbCtx() {
   if (ibv_destroy_qp(this->umr_qp)) {
-    throw("Couldn't destroy QP");
+    PERR(CouldNotDestroyQP); // throw("Couldn't destroy QP");    
   }
 
   if (ibv_destroy_cq(this->umr_cq)) {
-    throw("Couldn't destroy CQ");
+    PERR(CouldNotDestroyCQ); // throw("Couldn't destroy CQ");
   }
 
   if (ibv_dealloc_pd(this->pd)) {
-    throw("Couldn't deallocate PD");
+    PERR(CouldNotDeallocatePD); // throw("Couldn't deallocate PD");
   }
 
   if (ibv_close_device(this->context)) {
-    throw("Couldn't release context");
+    PERR(CouldNotReleaseContext); // throw("Couldn't release context");
   }
 }
 
@@ -82,10 +82,10 @@ VerbCtx::VerbCtx() {
 
   if (safeFlag) {
     fprintf(stderr, "ERROR - verb context initiated twice!");
-    throw "ERROR - verb context initiated twice!";
+    PERR(VerbsCtxInitiatedTwice); // throw "ERROR - verb context initiated twice!";
   }
 
-  fprintf(stderr, "VerbCtx C'tor: Current Time: %s \n", __TIME__);
+  PRINTF("VerbCtx C'tor: Current Time: %s \n", __TIME__);
 
   safeFlag = true;
 
@@ -95,19 +95,19 @@ VerbCtx::VerbCtx() {
   struct ibv_device **dev_list = ibv_get_device_list(&number_of_ib_devices);
   struct ibv_device *ib_dev;
   if (!dev_list) {
-    throw("Failed to get IB devices list");
+    PERR(FailedToGetIbDeviceList); // throw("Failed to get IB devices list");
   }
 
   for (int i = 0; i<number_of_ib_devices; i++) {
-      fprintf(stderr, "Available device #%d: %s.\n", i, ibv_get_device_name(dev_list[i]));  
+      PRINTF("Available device #%d: %s.\n", i, ibv_get_device_name(dev_list[i]));  
   }
 
   if (!ib_devname) {
     ib_dev = dev_list[0]; // Get the first available device // TODO: Need to fix this?
     if (!ib_dev) {
-      throw("No IB devices found");
+      PERR(NoIbDevicesFound); // throw("No IB devices found");
     }
-    fprintf(stderr, "Will use first available IB device: %s \n", ibv_get_device_name(ib_dev));
+    PRINTF("Will use first available IB device: %s \n", ibv_get_device_name(ib_dev));
   } else {
     int i;
     for (i = 0; dev_list[i]; ++i)
@@ -115,17 +115,17 @@ VerbCtx::VerbCtx() {
         break;
     ib_dev = dev_list[i];
     if (!ib_dev) {
-      throw("IB device not found");
+      PERR(NoEnvIbDeviceFound); // throw("IB device from ENV not found");
     }
   }
 
-  fprintf(stderr, "Using IB device: %s \n", ibv_get_device_name(ib_dev));
+  PRINTF("Using IB device: %s \n", ibv_get_device_name(ib_dev));
 
   PRINT(ibv_get_device_name(ib_dev));
   this->context = ibv_open_device(ib_dev);
   ibv_free_device_list(dev_list);
   if (!this->context) {
-    throw "Couldn't get context (failed to open an IB device)";
+    PERR(FailedToOpenIbDevice); // throw "Couldn't get context (failed to open an IB device)";
   }
 
   this->pd = ibv_alloc_pd(this->context);
@@ -138,14 +138,14 @@ VerbCtx::VerbCtx() {
 
   this->umr_cq = ibv_create_cq(this->context, CX_SIZE, NULL, NULL, 0);
   if (!this->umr_cq) {
-    throw "Couldn't create CQ";
+    PERR(CouldNotCreateCQ); // throw "Couldn't create CQ";
   }
   memset(&this->attrs, 0, sizeof(this->attrs));
   this->attrs.comp_mask = IBV_EXP_DEVICE_ATTR_UMR;
   this->attrs.comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DM_SIZE;
 
   if (ibv_exp_query_device(this->context, &this->attrs)) {
-    throw "Couldn't query device attributes";
+    PERR(CouldNotQueryDevice); // throw "Couldn't query device attributes";
   }
 
   if (!(this->attrs.comp_mask & IBV_EXP_DEVICE_ATTR_MAX_DM_SIZE) ||
@@ -174,7 +174,7 @@ VerbCtx::VerbCtx() {
 
     this->umr_qp = ibv_exp_create_qp(this->context, &attr);
     if (!this->umr_qp) {
-      throw("Couldn't create UMR QP");
+      PERR(CouldNotCreateUmrQP); // throw("Couldn't create UMR QP");
     }
   }
 
@@ -189,7 +189,7 @@ VerbCtx::VerbCtx() {
     if (ibv_modify_qp(this->umr_qp, &qp_attr, IBV_QP_STATE | IBV_QP_PKEY_INDEX |
                                                   IBV_QP_PORT |
                                                   IBV_QP_ACCESS_FLAGS)) {
-      throw("Failed to INIT the UMR QP");
+      PERR(CouldNotInitUmrQp); // throw("Failed to INIT the UMR QP");
     }
 
     peer_addr_t my_addr;
@@ -211,7 +211,7 @@ clean_mr: // TODO: Check if never used. If not used - delete!
 clean_comp_channel: // TODO: Check if never used. If not used - delete!
   ibv_close_device(this->context);
 
-  throw "Failed to create QP";
+  PERR(CouldNotCreateQP); // throw "Failed to create QP";
 }
 
 int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr) {
@@ -255,7 +255,7 @@ int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp) {
                                      IBV_QP_MIN_RNR_TIMER);
   if (res) {
     fprintf(stderr, "Failed to modify QP to RTR. reason: %d\n", res);
-    throw "a";
+    PERR(CouldNotModifyQpToRTR); // throw "a";
     // PERR(QpFailedRTR);
   }
 
@@ -269,7 +269,7 @@ int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp) {
                                    IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
                                    IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC)) {
     // PERR(QpFailedRTS);
-    throw 3;
+    PERR(CouldNotModifyQpToRTS); // throw 3;
   }
 
   return 0;

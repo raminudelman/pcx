@@ -85,6 +85,38 @@ extern "C" {
 #define PRINTF(f_, ...)
 #endif
 
+// Used in pcx_mem.cc
+PCX_ERROR(NotEnoughKLMs)
+PCX_ERROR(NoUMRKey)
+PCX_ERROR(CreateMRFailed)
+PCX_ERROR(UMR_PollFailed)
+PCX_ERROR(UMR_CompletionInError)
+PCX_ERROR_RES(UMR_PostFailed)
+PCX_ERROR(EmptyUMR)
+PCX_ERROR(MemoryNotSupported)
+PCX_ERROR(AllocateDeviceMemoryFailed)
+PCX_ERROR(AllocateMemoryFailed)
+PCX_ERROR(RegMrFailed)
+PCX_ERROR(ExpRegMrFailed)
+
+// Used in verbs_ctx.cc
+PCX_ERROR(CouldNotCreateQP)
+PCX_ERROR(CouldNotDestroyQP)
+PCX_ERROR(CouldNotCreateUmrQP)
+PCX_ERROR(CouldNotInitUmrQp)
+PCX_ERROR(CouldNotCreateCQ)
+PCX_ERROR(CouldNotDestroyCQ)
+PCX_ERROR(CouldNotDeallocatePD)
+PCX_ERROR(CouldNotReleaseContext)
+PCX_ERROR(VerbsCtxInitiatedTwice)
+PCX_ERROR(FailedToGetIbDeviceList)
+PCX_ERROR(NoIbDevicesFound)
+PCX_ERROR(NoEnvIbDeviceFound)
+PCX_ERROR(FailedToOpenIbDevice)
+PCX_ERROR(CouldNotQueryDevice)
+PCX_ERROR(CouldNotModifyQpToRTR)
+PCX_ERROR(CouldNotModifyQpToRTS)
+
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
 #define CX_SIZE 16 // TODO: Should be removed
 
