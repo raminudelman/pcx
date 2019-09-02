@@ -114,9 +114,7 @@ TransportQp::~TransportQp() {
 }
 
 void TransportQp::init() {
-  
 }
-
 
 void TransportQp::send_credit() {
   ++wqe_count;
