@@ -105,6 +105,10 @@ protected:
 
 };
 
+typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *,
+                                 size_t, uint32_t, uint32_t);
+typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange;
+
 // Each QP which is of type TransportQp is a QP which has a tranport
 // and it responsible for transferring data from one place to another.
 class TransportQp : public PcxQp {
@@ -129,6 +133,9 @@ public:
 
   // Enable to change the peer of the QP
   void set_pair(PcxQp *pair_); // TODO: Change the name to peer
+
+  LambdaExchange exchange;
+  LambdaExchange barrier;
 
 protected:
 
@@ -173,11 +180,7 @@ public:
   void init();
 };
 
-typedef int (*p2p_exchange_func)(void *, volatile void *, volatile void *, // TODO: Move this to pcx_transport_qps
-                                 size_t, uint32_t, uint32_t);
-typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExchange; // TODO: Move this to pcx_transport_qps
-
-class DoublingQp : public TransportQp { // TODO: Move to new file pcx_doubling.h // Create new QP type to be TransportQp and DoublingQp should inherit it
+class DoublingQp : public TransportQp { // TODO: Move to new file pcx_doubling.h
 public:
   DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
   ~DoublingQp();
@@ -185,15 +188,12 @@ public:
   void init();
   void write(NetMem *local, bool require_cmpl);
 
-  LambdaExchange exchange; // TODO: Consider to move to TransportQp
-  LambdaExchange barrier; // TODO: Consider to move to TransportQp
-
 protected:
   RemoteMem *remote;
   NetMem *incoming;
 };
 
-class RingQp : public TransportQp { // TODO: Move to new file pcx_ring.h // Create new QP type to be TransportQp and RingQp should inherit it
+class RingQp : public TransportQp { // TODO: Move to new file pcx_ring.h
 public:
   RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
          uint32_t tag, PipeMem *incomingBuffer);
@@ -203,9 +203,6 @@ public:
   void write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
   void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
                     uint8_t type, bool require_cmpl);
-
-  LambdaExchange exchange; // TODO: Consider to move to TransportQp
-  LambdaExchange barrier; // TODO: Consider to move to TransportQp
 
 protected:
   PipeMem *remote;
