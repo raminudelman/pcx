@@ -223,7 +223,7 @@ void ManagementQp::init() {
     PERR(MissingContext);
   }
 
-  this->ibcq = cd_create_cq(graph->ctx, cqe_count);
+  this->ibcq = cd_create_cq(ctx, cqe_count);
   if (!this->ibcq) {
     PERR(CQCreateFailed);
   }
