@@ -7,6 +7,14 @@
 #include <queue>
 #include <vector>
 
+//#define QP_DEBUG
+#ifdef QP_DEBUG
+#define QP_PRINT(args...) fprintf(stderr, "(%s: %d) in function %s: " \
+                       ,__FILE__,__LINE__,__func__); fprintf(stderr, args)
+#else
+#define QP_PRINT(args...)
+#endif
+
 // CORE-Direct (CD) status 
 enum cd_statuses { 
   PCOLL_SUCCESS = 0, 
@@ -16,47 +24,9 @@ enum cd_statuses {
 typedef std::function<void()> LambdaInstruction;
 typedef std::queue<LambdaInstruction> InsQueue;
 
-class PcxQp;
-class ManagementQp;
-
-typedef std::vector<PcxQp *> GraphQps;
-typedef GraphQps::iterator GraphQpsIt;
-
-// Communication Graph class.
-// Holds all the communication graph of a collective operation.
-// The Communication Graph holds a management QP which acts as a 
-// management unit which in charge of executing all the operation that
-// where defined in advance. 
-class CommGraph {
-public:
-  CommGraph(VerbCtx *vctx);
-  ~CommGraph();
-
-  void enqueue(LambdaInstruction &ins);
-
-  // Register a QP to the graph. 
-  void regQp(PcxQp *qp);
-  
-  void wait(PcxQp *slave_qp, bool wait_scq = false);
-
-  void db();
-
-  void finish();
-
-  ManagementQp *mqp; // mqp stands for "Managment Queue Pair"
-
-  VerbCtx *ctx;
-
-  // Instructions queue
-  InsQueue iq;
-  
-  GraphQps qps;
-  uint16_t qp_cnt;
-};
-
 class PcxQp {
 public:
-  PcxQp(CommGraph *cgraph);
+  PcxQp(VerbCtx *ctx);
   virtual ~PcxQp() = 0;
   
   virtual void init() = 0;
@@ -71,8 +41,8 @@ public:
   // Holds how many WQEs will be executed during a single collective operation 
   int wqe_count;
 
-  // Holds how many CQE are expected to be generated during a single collective
-  // operation 
+  // The number of WQEs that are expected to be executed 
+  // during a single collective operation
   int cqe_count; // Required for all QP types (both transport and non transport)
 
   int recv_enables;
@@ -85,7 +55,6 @@ public:
   qp_ctx *qp;
 
 protected:
-  CommGraph *graph;
 
   struct ibv_qp *ibqp;
 
@@ -113,26 +82,18 @@ typedef std::function<void(volatile void *, volatile void *, size_t)> LambdaExch
 // and it responsible for transferring data from one place to another.
 class TransportQp : public PcxQp {
 public:
-  TransportQp(CommGraph *cgraph);
+  TransportQp(VerbCtx *ctx);
   virtual ~TransportQp() = 0;
   
   virtual void init() = 0;
 
   int scqe_count;
 
-  void send_credit();
-
-  // Sends the local memory to remote memory using RDMA write
-  void write(NetMem *local, NetMem *remote, bool require_cmpl);
-
-  // Performs reduce operation on the local memory and sends the result data
-  // to remote memory using RDMA write. 
-  // In case CQE is needed, the argument require_cmpl should be set to 'true'
-  void reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type, bool require_cmpl);
+  LambdaInstruction send_credit();
 
   // Enable to change the peer of the QP
   void set_pair(PcxQp *pair_); // TODO: Change the name to peer
+  const PcxQp* get_pair();
 
   LambdaExchange exchange;
   LambdaExchange barrier;
@@ -150,20 +111,18 @@ protected:
                               uint16_t send_wq_size, uint16_t recv_rq_size,
                               struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
                               int slaveSend = 1);
-
-
 };
 
 class ManagementQp : public PcxQp {
 public:
-  void cd_send_enable(PcxQp *slave_qp);
-  void cd_recv_enable(PcxQp *slave_qp);
-  void cd_wait(PcxQp *slave_qp, bool wait_scq = false);
-
-  ManagementQp(CommGraph *cgraph);
+  ManagementQp(VerbCtx *ctx);
   ~ManagementQp();
   void init();
 
+  LambdaInstruction cd_send_enable(PcxQp *slave_qp);
+  LambdaInstruction cd_recv_enable(PcxQp *slave_qp);
+  LambdaInstruction cd_wait(PcxQp *slave_qp, bool wait_scq = false);
+ 
   LambdaInstruction stack; // TODO: Check if used. If not used remove!
   uint16_t last_qp; // TODO: Check if used. If not used remove!
   bool has_stack; // TODO: Check if used. If not used remove!
@@ -175,18 +134,38 @@ private:
 
 class LoopbackQp : public TransportQp {
 public:
-  LoopbackQp(CommGraph *cgraph);
+  LoopbackQp(VerbCtx *ctx);
   ~LoopbackQp();
   void init();
+
+  LambdaInstruction write(NetMem *local, RefMem *remote, bool require_cmpl);
+  LambdaInstruction write(NetMem *local, NetMem *remote, bool require_cmpl);
+
+  LambdaInstruction reduce_write(UmrMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+  LambdaInstruction reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
 };
 
 class DoublingQp : public TransportQp { // TODO: Move to new file pcx_doubling.h
 public:
-  DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
+  DoublingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm, uint32_t peer, uint32_t tag, NetMem *incomingBuffer);
   ~DoublingQp();
 
   void init();
-  void write(NetMem *local, bool require_cmpl);
+  LambdaInstruction write(NetMem *local, bool require_cmpl);
+
+  // Sends the local memory to remote memory using RDMA write
+  // where the receiving side will *always* get a CQE.
+  // The sending side will receive CQE iff require_cmpl == true.
+  LambdaInstruction write(NetMem *local, NetMem *remote, bool require_cmpl);
+
+  // Performs reduce operation on the local memory and sends the result data
+  // to remote memory using RDMA write. 
+  // In case CQE is needed, the argument require_cmpl should be set to 'true'
+  LambdaInstruction reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+
 
 protected:
   RemoteMem *remote;
@@ -195,13 +174,13 @@ protected:
 
 class RingQp : public TransportQp { // TODO: Move to new file pcx_ring.h
 public:
-  RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm, uint32_t peer,
+  RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm, uint32_t peer,
          uint32_t tag, PipeMem *incomingBuffer);
   ~RingQp();
 
   void init();
-  void write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
-  void reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
+  LambdaInstruction write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
+  LambdaInstruction reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
                     uint8_t type, bool require_cmpl);
 
 protected:
@@ -209,13 +188,65 @@ protected:
   PipeMem *incoming;
 };
 
-class RingPair { // TODO: Move to new file pcx_ring.h
-public:
-  RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm,
-           uint32_t myRank, uint32_t commSize, uint32_t tag1, uint32_t tag2,
-           PipeMem *incoming);
-  ~RingPair();
 
-  RingQp *right;
-  RingQp *left;
+typedef std::vector<PcxQp *> GraphQps; // TODO: Cannot change to vector of TransportQps because ManagementQp is also registered... need to seprate it from the list?
+typedef GraphQps::iterator GraphQpsIt;
+
+// Communication Graph class.
+// Holds all the communication graph of a collective operation.
+// The Communication Graph holds a management QP which acts as a 
+// management unit which in charge of executing all the operation that
+// where defined in advance. 
+class CommGraph {
+public:
+  CommGraph(VerbCtx *ctx);
+  ~CommGraph();
+
+  void enqueue(LambdaInstruction &ins); // TODO: Move to private section of the class
+
+  // Register a QP to the graph. 
+  // Each graph should have a single Management QP and single/multiple Transport QPs
+  void regQp(ManagementQp *qp);
+  void regQp(LoopbackQp *qp);
+  void regQp(DoublingQp *qp);
+  void regQp(RingQp *qp);
+
+  void wait(PcxQp *slave_qp, bool wait_scq = false);
+
+  void reduce_write(RingQp *slave_qp, NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
+                    uint8_t type, bool require_cmpl);
+  void reduce_write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+  void reduce_write(LoopbackQp *slave_qp, UmrMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+  void reduce_write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors,
+                    uint8_t op, uint8_t type, bool require_cmpl);
+
+  void write(RingQp *slave_qp, NetMem *local, size_t pos, bool require_cmpl);
+  void write(LoopbackQp *slave_qp, NetMem *local, RefMem *remote, bool require_cmpl);
+  void write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl);
+  void write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl);
+  void write(DoublingQp *slave_qp, NetMem *local, bool require_cmpl);
+
+  void send_credit(TransportQp *slave_qp);
+
+  void db();
+
+  void finish();
+
+  // mqp stands for "Management Queue Pair"
+  ManagementQp *mqp; 
+
+  // Used only for passing it into new PcxQps.
+  VerbCtx *ctx;
+
+  // Instructions queue
+  InsQueue iq;
+  
+  GraphQps qps;
+  uint16_t qp_cnt; // TODO: use qps.size() instead and remote this member.
+
+private:
+  void regQpCommon(PcxQp *qp);
+
 };

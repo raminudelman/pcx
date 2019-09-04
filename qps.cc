@@ -11,16 +11,40 @@ PCX_ERROR(CQModifyFailed);
 PCX_ERROR(MissingContext);
 
 CommGraph::CommGraph(VerbCtx *vctx) : ctx(vctx), mqp(NULL), iq(), qp_cnt(0) {
-  ctx->mtx.lock();
-  mqp = new ManagementQp(this);
 }
 
 CommGraph::~CommGraph() { 
-  delete (mqp); 
 }
 
-void CommGraph::regQp(PcxQp *qp) {
-  qps.push_back(qp);
+void CommGraph::regQp(ManagementQp *qp) {
+  this->mqp = qp;
+  regQpCommon(qp);
+  QP_PRINT("Registered ManagementQp with ID='%d' \n", qp->id);
+}
+
+void CommGraph::regQp(LoopbackQp *qp) {
+  LambdaInstruction lambda = this->mqp->cd_recv_enable(qp);
+  this->enqueue(lambda);
+  regQpCommon(qp);
+  QP_PRINT("Registered LoopbackQp with ID='%d' \n", qp->id);
+}
+
+void CommGraph::regQp(DoublingQp *qp) {
+  LambdaInstruction lambda = this->mqp->cd_recv_enable(qp);
+  this->enqueue(lambda);
+  regQpCommon(qp);
+  QP_PRINT("Registered DoublingQp with ID='%d' \n", qp->id);
+}
+
+void CommGraph::regQp(RingQp *qp) {
+  LambdaInstruction lambda = this->mqp->cd_recv_enable(qp);
+  this->enqueue(lambda);
+  regQpCommon(qp);
+  QP_PRINT("Registered RingQp with ID='%d' \n", qp->id);
+}
+
+void CommGraph::regQpCommon(PcxQp *qp) {
+  this->qps.push_back(qp);
   qp->id = qp_cnt;
   ++qp_cnt;
 }
@@ -30,7 +54,82 @@ void CommGraph::enqueue(LambdaInstruction &ins) {
 }
 
 void CommGraph::wait(PcxQp *slave_qp, bool wait_scq) { 
-  mqp->cd_wait(slave_qp, wait_scq); 
+  LambdaInstruction lambda = mqp->cd_wait(slave_qp, wait_scq);
+  QP_PRINT("Add graph operation: ManagementQP        will 'wait'             on QP   ID='%d' on SQ? %d. \n", slave_qp->id, wait_scq);
+  this->enqueue(lambda);
+}
+
+void CommGraph::reduce_write(RingQp *slave_qp, NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->reduce_write(local, pos, num_vectors, op, type, require_cmpl);
+  QP_PRINT("Add graph operation: RingQP      ID='%d' will 'reduce and write' to peer ID=%d to position = %lu \n", slave_qp->id, slave_qp->get_pair()->id, pos);
+  this->enqueue(lambda);
+  lambda = this->mqp->cd_send_enable(slave_qp);              
+  this->enqueue(lambda);
+}
+void CommGraph::reduce_write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: DoublingQp  ID='%d' will 'reduce and write' to peer ID=%d\n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::reduce_write(LoopbackQp *slave_qp, UmrMem *local, NetMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'reduce and write' to peer ID=%d\n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::reduce_write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'reduce and write' to peer ID=%d\n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::write(RingQp *slave_qp, NetMem *local, size_t pos, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->write(local, pos, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: RingQp      ID='%d' will 'reduce and write' to peer ID=%d to position = %lu \n", slave_qp->id, slave_qp->get_pair()->id, pos);
+
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::write(LoopbackQp *slave_qp, NetMem *local, RefMem *remote, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->write(local, remote, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'write'            to peer ID=%d \n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->write(local, remote, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'write'            to peer ID=%d \n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->write(local, remote, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: DoublingQp  ID='%d' will 'write'            to peer ID=%d \n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+void CommGraph::write(DoublingQp *slave_qp, NetMem *local, bool require_cmpl) {
+  LambdaInstruction lambda = slave_qp->write(local, require_cmpl);
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: DoublingQp  ID='%d' will 'write'            to peer ID=%d \n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
+}
+
+void CommGraph::send_credit(TransportQp *slave_qp) {
+  LambdaInstruction lambda = slave_qp->send_credit();
+  this->enqueue(lambda);
+  QP_PRINT("Add graph operation: TransportQP ID='%d' will 'send_credit'      to peer ID=%d \n", slave_qp->id, slave_qp->get_pair()->id);
+  lambda = this->mqp->cd_send_enable(slave_qp);
+  this->enqueue(lambda);
 }
 
 void CommGraph::db() { 
@@ -41,26 +140,23 @@ void CommGraph::finish() {
   for (GraphQpsIt it = qps.begin(); it != qps.end(); ++it) {
     (*it)->init();
   }
-  PRINT("Starting to write WQEs");
+  QP_PRINT("Starting to write WQEs \n");
   while (!iq.empty()) {
     LambdaInstruction &instruction = iq.front();
     instruction();
     iq.pop();
   }
-  PRINT("Finalizing");
+  QP_PRINT("Finalizing \n");
   for (GraphQpsIt it = qps.begin(); it != qps.end(); ++it) {
     (*it)->fin();
   }
   mqp->db(mqp->recv_enables);
-  PRINT("READY!");
-  ctx->mtx.unlock();
+  QP_PRINT("READY! \n");
 }
 
-PcxQp::PcxQp(CommGraph *cgraph)
+PcxQp::PcxQp(VerbCtx *ctx)
     : wqe_count(0), cqe_count(0), recv_enables(0),
-      graph(cgraph), ctx(cgraph->ctx), qp(NULL), ibqp(NULL), ibcq(NULL) {
-  cgraph->regQp(this);
-}
+     ctx(ctx), qp(NULL), ibqp(NULL), ibcq(NULL) {}
 
 PcxQp::~PcxQp() {
 }
@@ -107,8 +203,8 @@ struct ibv_cq *PcxQp::cd_create_cq(VerbCtx *verb_ctx, int cqe, void *cq_context,
   return cq;
 }
 
-TransportQp::TransportQp(CommGraph *cgraph)
-    : PcxQp(cgraph), scqe_count(0), ibscq(NULL), pair(this) {}
+TransportQp::TransportQp(VerbCtx *ctx)
+    : PcxQp(ctx), scqe_count(0), ibscq(NULL), pair(this) {}
 
 TransportQp::~TransportQp() {
 }
@@ -116,15 +212,14 @@ TransportQp::~TransportQp() {
 void TransportQp::init() {
 }
 
-void TransportQp::send_credit() {
+LambdaInstruction TransportQp::send_credit() {
   ++wqe_count;
   ++pair->cqe_count;
   LambdaInstruction lambda = [this]() { qp->send_credit(); };
-  graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
+  return lambda;
 }
 
-void TransportQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
+LambdaInstruction DoublingQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
@@ -143,23 +238,25 @@ void TransportQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
     this->qp->write(&lsg, &rsg, require_cmpl);
   };
 
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
+  return lambda;
 }
 
-void TransportQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
+LambdaInstruction DoublingQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
                          uint8_t op, uint8_t type, bool require_cmpl) {
   wqe_count += 2;
   ++this->pair->cqe_count;
   LambdaInstruction lambda = [this, local, remote, num_vectors, op, type, require_cmpl]() {
     this->qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
   };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
+  return lambda;
 }
 
 void TransportQp::set_pair(PcxQp *pair_) { 
     this->pair = pair_; 
+};
+
+const PcxQp* TransportQp::get_pair() { 
+    return this->pair; 
 };
 
 struct ibv_qp *TransportQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
@@ -208,8 +305,8 @@ struct ibv_qp *TransportQp::rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
 }
 
 
-ManagementQp::ManagementQp(CommGraph *cgraph)
-    : PcxQp(cgraph), last_qp(0), has_stack(false) {}
+ManagementQp::ManagementQp(VerbCtx *ctx)
+    : PcxQp(ctx), last_qp(0), has_stack(false) {}
 
 ManagementQp::~ManagementQp() {
   delete (qp);
@@ -231,33 +328,32 @@ void ManagementQp::init() {
   this->ibqp = create_management_qp(this->ibcq, ctx, wqe_count);
   this->qp = new qp_ctx(this->ibqp, this->ibcq, wqe_count, cqe_count);
 
-  PRINT("ManagementQP initiated");
+  QP_PRINT("ManagementQP initiated (ID = %d, wqe_count = %d, cqe_count = %d) \n", id, wqe_count, cqe_count);
 }
 
-void ManagementQp::cd_send_enable(PcxQp *slave_qp) {
+LambdaInstruction ManagementQp::cd_send_enable(PcxQp *slave_qp) {
   ++wqe_count;
   LambdaInstruction lambda = [this, slave_qp]() {
     this->qp->cd_send_enable(slave_qp->qp);
   };
-  this->graph->enqueue(lambda);
+  return lambda;
 }
 
-void ManagementQp::cd_recv_enable(
-    PcxQp *slave_qp) { // call from PcxQp constructor
+LambdaInstruction ManagementQp::cd_recv_enable(PcxQp *slave_qp) { // called from PcxQp constructor
   ++wqe_count;
   LambdaInstruction lambda = [this, slave_qp]() {
     this->qp->cd_recv_enable(slave_qp->qp);
   };
-  this->graph->enqueue(lambda);
   ++recv_enables;
+  return lambda;
 }
 
-void ManagementQp::cd_wait(PcxQp *slave_qp, bool wait_scq) {
+LambdaInstruction ManagementQp::cd_wait(PcxQp *slave_qp, bool wait_scq) {
   ++wqe_count;
   LambdaInstruction lambda = [this, slave_qp, wait_scq]() {
     this->qp->cd_wait(slave_qp->qp, wait_scq);
   };
-  this->graph->enqueue(lambda);
+  return lambda;
 }
 
 struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
@@ -356,9 +452,8 @@ struct ibv_qp *ManagementQp::create_management_qp(struct ibv_cq *cq, VerbCtx *ve
   return _mq;
 }
 
-LoopbackQp::LoopbackQp(CommGraph *cgraph) : TransportQp(cgraph) {
+LoopbackQp::LoopbackQp(VerbCtx *ctx) : TransportQp(ctx) {
   this->has_scq = false;
-  cgraph->mqp->cd_recv_enable(this);
 }
 
 LoopbackQp::~LoopbackQp() {
@@ -379,14 +474,79 @@ void LoopbackQp::init() {
   rc_qp_connect(&loopback_addr, ibqp);
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count);
 
-  PRINT("Loopback RC QP initiated");
+  QP_PRINT("LoopbackQP initiated (ID = %d, wqe_count = %d, cqe_count = %d, peer QP ID = %d) \n", id, wqe_count, cqe_count, pair->id);
 }
 
-DoublingQp::DoublingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
+LambdaInstruction LoopbackQp::write(NetMem *local, RefMem *remote, bool require_cmpl) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
+  }
+
+  struct ibv_sge lsg = (*local->sg());
+  struct ibv_sge rsg = (*remote->sg());
+
+  LambdaInstruction lambda = [this, lsg, rsg, require_cmpl]() {
+    this->qp->write(&lsg, &rsg, require_cmpl);
+  };
+
+  return lambda;
+}
+
+LambdaInstruction LoopbackQp::write(NetMem *local, NetMem *remote, bool require_cmpl) {
+  ++wqe_count;
+  ++this->pair->cqe_count;
+
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
+  }
+
+  struct ibv_sge lsg = (*local->sg());
+  struct ibv_sge rsg = (*remote->sg());
+
+  LambdaInstruction lambda = [this, lsg, rsg, require_cmpl]() {
+    this->qp->write(&lsg, &rsg, require_cmpl);
+  };
+
+  return lambda;
+}
+
+LambdaInstruction LoopbackQp::reduce_write(UmrMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
+                         uint8_t op, uint8_t type, bool require_cmpl) {
+  wqe_count += 2;
+  ++this->pair->cqe_count;
+  LambdaInstruction lambda = [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    this->qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
+  };
+  return lambda;
+}
+
+LambdaInstruction LoopbackQp::reduce_write(NetMem *local, NetMem *remote, uint16_t num_vectors, // TODO: Does someone use this function?
+                         uint8_t op, uint8_t type, bool require_cmpl) {
+  wqe_count += 2;
+  ++this->pair->cqe_count;
+  LambdaInstruction lambda = [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    this->qp->reduce_write(local, remote, num_vectors, op, type, require_cmpl);
+  };
+  return lambda;
+}
+
+
+
+DoublingQp::DoublingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm,
                        uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
-    : TransportQp(cgraph), incoming(incomingBuffer) {
+    : TransportQp(ctx), incoming(incomingBuffer) {
   this->has_scq = true;
-  cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
 
   exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
@@ -452,26 +612,23 @@ void DoublingQp::init() {
 
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
 
-  PRINT("DoublingQP initiated");
+  QP_PRINT("DoublingQP initiated (ID = %d, wqe_count = %d, cqe_count = %d, scqe_count = %d, peer QP ID = %d) \n", id, wqe_count, cqe_count, scqe_count, pair->id);
 }
 
-void DoublingQp::write(NetMem *local, bool require_cmpl) {
+LambdaInstruction DoublingQp::write(NetMem *local, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
   LambdaInstruction lambda = [this, local, require_cmpl]() {
     this->qp->write(local, this->remote, require_cmpl);
   };
-
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
+  return lambda;
 }
 
-RingQp::RingQp(CommGraph *cgraph, p2p_exchange_func func, void *comm,
+RingQp::RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm,
                uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
-    : TransportQp(cgraph), incoming(incomingBuffer) {
+    : TransportQp(ctx), incoming(incomingBuffer) {
   this->has_scq = true;
-  cgraph->mqp->cd_recv_enable(this);
   using namespace std::placeholders;
 
   exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
@@ -546,10 +703,10 @@ void RingQp::init() {
     this->qp->set_pair(this->pair->qp);
   }
 
-  PRINT("RingQP initiated");
+  QP_PRINT("RingQP initiated (ID = %d, wqe_count = %d, cqe_count = %d, scqe_count = %d, peer QP ID = %d) \n", id, wqe_count, cqe_count, scqe_count, pair->id);
 }
 
-void RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
+LambdaInstruction RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
@@ -568,11 +725,10 @@ void RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
     this->qp->write(&lsg, (*this->remote)[pos].sg(), require_cmpl);
   };
 
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
+  return lambda;
 }
 
-void RingQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
+LambdaInstruction RingQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
                         uint8_t op, uint8_t type, bool require_cmpl) {
   wqe_count += 2;
   ++this->pair->cqe_count;
@@ -591,28 +747,5 @@ void RingQp::reduce_write(NetMem *local, size_t pos, uint16_t num_vectors,
     RefMem ref = ((*this->remote)[pos]);
     this->qp->reduce_write(local, &ref, num_vectors, op, type, require_cmpl);
   };
-  this->graph->enqueue(lambda);
-  graph->mqp->cd_send_enable(this);
-}
-
-RingPair::RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file
-                   uint32_t myRank, uint32_t commSize, uint32_t tag1,
-                   uint32_t tag2, PipeMem *incoming) {
-  uint32_t rightRank = (myRank + 1) % commSize;
-  uint32_t leftRank = (myRank - 1 + commSize) % commSize;
-
-  if (myRank % 2) { // Odd rank
-    this->right = new RingQp(cgraph, func, comm, rightRank, tag1, incoming);
-    this->left = new RingQp(cgraph, func, comm, leftRank, tag2, incoming);
-  } else { // Even rank
-    this->left = new RingQp(cgraph, func, comm, leftRank, tag1, incoming);
-    this->right = new RingQp(cgraph, func, comm, rightRank, tag2, incoming);
-  }
-  right->set_pair(left);
-  left->set_pair(right);
-}
-
-RingPair::~RingPair() {
-  delete (right);
-  delete (left);
+  return lambda;
 }
