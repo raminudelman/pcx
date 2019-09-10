@@ -120,6 +120,11 @@ PCX_ERROR(CouldNotModifyQpToRTS)
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
 #define CX_SIZE 16 // TODO: Should be removed
 
+// PCX performs the reduction operation directly on the NIC.
+// This number defines how many elements are supported to be reduced on a
+// single NIC.
+#define MAX_LOCAL_VECTOR_SIZE_TO_REDUCE 16 // TODO: This value was originally 8 and was increased to 16. What is the problem to keep increasing it? It will consume more memory... are there any more implications?
+
 class VerbCtx {
 private:
   VerbCtx(); // TODO: Need to make this public and use some way of allocating only a single instance. The function "getInstance" is redandent

@@ -170,7 +170,7 @@ VerbCtx::VerbCtx() {
     attr.cap.max_recv_wr = 0;
     attr.cap.max_send_sge = 1;
     attr.cap.max_recv_sge = 0;
-    attr.max_inl_send_klms = 8;
+    attr.max_inl_send_klms = MAX_LOCAL_VECTOR_SIZE_TO_REDUCE;
 
     this->umr_qp = ibv_exp_create_qp(this->context, &attr);
     if (!this->umr_qp) {
