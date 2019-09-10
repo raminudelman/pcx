@@ -99,7 +99,7 @@ struct mlx5_db_seg {
   __be32 qpn_ds;
 };
 
-struct cqe64 { // TODO: This struct is very similar to the struct mlx5_cqe64 defined in mlxdv.h. Why cant we take the struct as is from mlx5dv.h?
+struct cqe64 { // TODO: This struct is very similar to the struct mlx5_cqe64 defined in mlx5dv.h. Why cant we take the struct as is from mlx5dv.h?
   uint8_t rsvd0[2];
   __be16 wqe_id;
   uint8_t rsvd4[13];
