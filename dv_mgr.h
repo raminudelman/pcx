@@ -256,7 +256,7 @@ private:
 
   int phase;
 
-  // Holds the current index of the WQE that should be exectured by the NIC
+  // Holds the current index of the WQE that should be executed by the NIC.
   uint32_t exe_cnt;
   
   RearmTasks tasks;
