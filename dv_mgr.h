@@ -174,7 +174,11 @@ public:
          size_t num_of_cqes, struct ibv_cq *scq, size_t num_of_send_cqes);
   ~qp_ctx();
 
-  // Send a DoorBell
+  // Send a DoorBell.
+  // The argument k allows to send a doorbell on specific WQE.
+  // If k == 0, then the doorbell will be sent on the next WQE that should be
+  // executed, which is by default the WQE which represent the next reduction
+  // operation .
   void db(uint32_t k = 0);
 
   // Return *all* the credits to peer QP
@@ -251,7 +255,10 @@ private:
   uint32_t number_of_duplicates;
 
   int phase;
+
+  // Holds the current index of the WQE that should be exectured by the NIC
   uint32_t exe_cnt;
+  
   RearmTasks tasks;
 
   // DoorBell segment

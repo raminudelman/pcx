@@ -261,7 +261,7 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
 }
 
 void qp_ctx::db(uint32_t k) {
-  uint32_t exe_cnt = (this->wqes);
+  exe_cnt += (this->wqes);
   if (k != 0) {
     exe_cnt = k;
   }
