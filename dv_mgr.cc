@@ -488,20 +488,24 @@ void qp_ctx::rearm() {
 }
 
 void qp_ctx::print_sq() {
-  fprintf(stderr, "Sq %lu: %dX%d\n", qpn, qp->sq.stride, qp->sq.wqe_cnt);
+  fprintf(stderr, "SQ %lX: %dX%d (WQE Size [Bytes] X WQE Count)\n", qpn, qp->sq.stride, qp->sq.wqe_cnt);
   print_buffer(this->qp->sq.buf, qp->sq.stride * qp->sq.wqe_cnt);
+  fprintf(stderr,"\n");
 }
 
 void qp_ctx::print_rq() {
-  fprintf(stderr, "Rq:\n");
+  fprintf(stderr, "RQ %lX: %dX%d (WQE Size [Bytes] X WQE Count)\n", qpn, qp->rq.stride, qp->rq.wqe_cnt);
   print_buffer(this->qp->rq.buf, qp->rq.stride * qp->rq.wqe_cnt);
+  fprintf(stderr,"\n");
 }
 
 void qp_ctx::print_cq() {
-  fprintf(stderr, "Cq %u:\n", cq->cqn);
+  fprintf(stderr, "CQ %X:\n", cq->cqn);
   print_buffer(this->cq->buf, cq->cqe_size * cq->cqe_cnt);
+  fprintf(stderr,"\n");
   if (this->scq) {
-    fprintf(stderr, "Send Cq %u:\n", scq->cq->cqn);
+    fprintf(stderr, "Send CQ %X:\n", scq->cq->cqn);
     print_buffer(this->scq->cq->buf, cq->cqe_size * cq->cqe_cnt);
+    fprintf(stderr,"\n");
   }
 }

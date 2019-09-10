@@ -7,7 +7,6 @@
 #include <queue>
 #include <vector>
 
-//#define QP_DEBUG
 #ifdef QP_DEBUG
 #define QP_PRINT(args...) fprintf(stderr, "(%s: %d) in function %s: " \
                        ,__FILE__,__LINE__,__func__); fprintf(stderr, args)
