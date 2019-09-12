@@ -10,7 +10,7 @@ PCX_ERROR(CQCreateFailed);
 PCX_ERROR(CQModifyFailed);
 PCX_ERROR(MissingContext);
 
-CommGraph::CommGraph(VerbCtx *vctx) : ctx(vctx), mqp(NULL), iq(), qp_cnt(0) {
+CommGraph::CommGraph() : mqp(NULL), iq(), qp_cnt(0) {
 }
 
 CommGraph::~CommGraph() { 

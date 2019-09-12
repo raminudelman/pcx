@@ -198,7 +198,7 @@ typedef GraphQps::iterator GraphQpsIt;
 // where defined in advance. 
 class CommGraph {
 public:
-  CommGraph(VerbCtx *ctx);
+  CommGraph();
   ~CommGraph();
 
   void enqueue(LambdaInstruction &ins); // TODO: Move to private section of the class
@@ -235,9 +235,6 @@ public:
 
   // mqp stands for "Management Queue Pair"
   ManagementQp *mqp; 
-
-  // Used only for passing it into new PcxQps.
-  VerbCtx *ctx;
 
   // Instructions queue
   InsQueue iq;
