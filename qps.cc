@@ -150,7 +150,6 @@ void CommGraph::finish() {
   for (GraphQpsIt it = qps.begin(); it != qps.end(); ++it) {
     (*it)->fin();
   }
-  //mqp->db(mqp->recv_enables); // TODO: Consider removing this db() call. The send enables can be sent during run() call in the algorithm. In case this line is not needed, no one else calls db(k) and this function can be deleted!
   QP_PRINT("READY! \n");
 }
 
@@ -161,8 +160,8 @@ PcxQp::PcxQp(VerbCtx *ctx)
 PcxQp::~PcxQp() {
 }
 
-void PcxQp::db(uint32_t k) { 
-  this->qp->db(k); 
+void PcxQp::db() { 
+  this->qp->db(); 
 }
 
 void PcxQp::poll() { 

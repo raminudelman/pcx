@@ -175,11 +175,9 @@ public:
   ~qp_ctx();
 
   // Send a DoorBell.
-  // The argument k allows to send a doorbell on specific WQE.
-  // If k == 0, then the doorbell will be sent on the next WQE that should be
-  // executed, which is by default the WQE which represent the next reduction
-  // operation .
-  void db(uint32_t k = 0);
+  // Doorbell will be sent on the next WQE that should be executed, which is by 
+  // default the WQE which represent the next reduction operation.
+  void db();
 
   // Return *all* the credits to peer QP
   void send_credit();

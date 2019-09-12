@@ -33,7 +33,7 @@ public:
 
   void poll();
 
-  void db(uint32_t k = 0);
+  void db();
 
   void print();
 
