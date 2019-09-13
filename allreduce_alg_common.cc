@@ -1,5 +1,5 @@
 // TODO: Add license
-#include "pcx_allreduce_common.h"
+#include "allreduce_alg_common.h"
 
 void freeIov(Iov &iov) {
   for (Iovit it = iov.begin(); it != iov.end(); ++it) {
