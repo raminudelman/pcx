@@ -4,6 +4,8 @@
 #include "third-party/pcx/pcx_mem.h"
 #include "third-party/pcx/qps.h"
 
+// TODO: copy from Gloo/algorithm.h all the code regarding ReductionType etc.
+
 typedef std::vector<PipeMem *> Iop;
 typedef Iop::iterator Iopit;
 
