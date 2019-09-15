@@ -142,8 +142,9 @@ public:
   struct ibv_pd *pd;
 
   // These QPs are used for registering UMR memory
-  struct ibv_cq *umr_cq;
-  struct ibv_qp *umr_qp;
+  struct ibv_cq *umr_cq; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
+  struct ibv_qp *umr_qp; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
+
   struct ibv_comp_channel *channel;
   struct ibv_exp_device_attr attrs;
   std::mutex mtx;
