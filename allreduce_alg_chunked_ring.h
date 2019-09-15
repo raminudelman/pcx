@@ -16,6 +16,25 @@
 
 #define RING_PIPELINE_DEPTH 1
 
+// Performs data exchange between peers in ring.
+// Sends data of size 'size' to 'peer' from 'send_buf' and
+// receives data of size 'size' from 'peer' to 'recv_buf'.
+// This function is used for connecting the QPs of two ranks.
+// After the execution of this function, the ranks will be able to communicate
+// via the two QPs (each rank through it's own QP on it's own end)
+//
+// Args:
+//    comm : Communicator that holds the rank ID of the current rank
+//    peer : Rank ID of the rank that will take part in the data exchange
+//           with the current rank
+//    send_buf: The buffer that wil be sent to the rank with
+//              rank id equals to 'peer'.
+//    recv_buf: The buffer that recieve data from the rank with
+//              rank id equals to 'peer'.
+//
+int ring_exchange(void *comm, volatile void *send_buf, volatile void *recv_buf,
+                  size_t size, uint32_t peer, uint32_t tag);
+
 
 template <typename T>
 class PcxAllreduceChunkedRing {
