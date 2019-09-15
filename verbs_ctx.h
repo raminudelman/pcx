@@ -140,6 +140,8 @@ public:
   ~VerbCtx();
   struct ibv_context *context;
   struct ibv_pd *pd;
+
+  // These QPs are used for registering UMR memory
   struct ibv_cq *umr_cq;
   struct ibv_qp *umr_qp;
   struct ibv_comp_channel *channel;
