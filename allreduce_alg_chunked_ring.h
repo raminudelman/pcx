@@ -35,7 +35,6 @@
 int ring_exchange(void *comm, volatile void *send_buf, volatile void *recv_buf,
                   size_t size, uint32_t peer, uint32_t tag);
 
-
 template <typename T>
 class PcxAllreduceChunkedRing {
   public:
@@ -44,13 +43,19 @@ class PcxAllreduceChunkedRing {
     const int contextSize,
     const int contextRank,
     const std::vector<T *> &ptrs,
-    const int count) // TODO: Need to add as argument also ReductionFunction/Type.
+    const int count,
+    uint32_t tag1,
+    uint32_t tag2,
+    void* comm) // TODO: Need to add as argument also ReductionFunction/Type.
     : contextSize_(contextSize),
       contextRank_(contextRank),
       ptrs_(ptrs),
       count_(count),
       bytes_(count_ * sizeof(T)),
-      pieceSize_(bytes_ / contextSize) {
+      pieceSize_(bytes_ / contextSize),
+      tag1(tag1),
+      tag2(tag2),
+      comm(comm) {
     PCX_RING_PRINT("Initializing PcxAllreduceRing \n");
     // In case the communicator is of size 1,
     // No need to reduce the ptrs vector, because
@@ -115,7 +120,192 @@ class PcxAllreduceChunkedRing {
   }
 
   void connect_and_prepare() {
-    // TODO: Copy the connect_and_prepare() function after getting rid of nextSlot() or context_
+    // The number of vectors to reduce.
+    // Each vector has count_ elements.
+    int vectors_to_reduce = ptrs_.size();
+
+    // step_count holds the number of iterations that the ring algorithm should
+    // perform in reduce-scatter stage, and in all-gather stage.
+    // During reduce-scatter it will perform step_count iterations,
+    // and in all-gather stage it will perform additional step_count iterations.
+    unsigned step_count = contextSize_;
+
+    // First we lock the verbs context so not other thread will be able to
+    // access it until we finish the whole "graph building" process.
+    // The lock should be released after the whole graph was built and
+    // "finalized".
+    ibv_ctx_->mtx.lock();
+
+    rd_.graph = new CommGraph();
+    CommGraph *sess = rd_.graph;
+
+    // Create a single management QP
+    rd_.mqp = new ManagementQp(ibv_ctx_);
+    sess->regQp(rd_.mqp);
+
+    PCX_RING_PRINT("Created management QP \n");
+
+    // Step #2: Register existing memory buffers with UMR
+
+    // Register (ibv_reg_mr) the users data buffers.
+    for (int i = 0; i < vectors_to_reduce; i++)
+    {
+      mem_.usr_vec.push_back(new PipeMem((void *)ptrs_[i], pieceSize_,
+                                         (size_t)contextSize_, ibv_ctx_));
+    }
+
+    int temp_type = PCX_MEMORY_TYPE_MEMIC;
+    temp_type = PCX_MEMORY_TYPE_HOST; // CHECK: Why is this patch needed? Why MEMIC cannot be used? MEMIC worked but during debug this code was added to prevent other bugs or compilcations. MEMIC is not that important and did not help performance too much because after some point the MEMIC region is not enought and it wil fall back to host mem anyway.
+
+    pipeline_ = RING_PIPELINE_DEPTH;
+
+    // Find the maximal pipeline which devides the communicator
+    // size without a reminder
+    while (contextSize_ % pipeline_) {
+      --pipeline_;
+    }
+    pipeline_ = contextSize_ * 2; // TODO: What is this? it overrides the loop that was before!!
+
+    // The tmpMem will be used for "incoming" messages from the qps, this buffer is of size pipeline and each element in the buffer is with size peicesize.
+    mem_.tmpMem = new PipeMem(pieceSize_, pipeline_, ibv_ctx_, temp_type);
+
+    // Create a loopback QP - used for DMA inside the container itself.
+    // Instead of using MemCpy and CudaMemCopy, the memory is copied via the NIC.
+    rd_.lqp = new LoopbackQp(ibv_ctx_);
+    sess->regQp(rd_.lqp);
+    LoopbackQp *lqp = rd_.lqp;
+    PCX_RING_PRINT("Loopback created \n");
+
+    // Establish a connection with each peer
+    uint32_t myRank = contextRank_;
+
+    rd_.pqp = new RingPair(sess, &ring_exchange, comm,
+                           myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
+    PCX_RING_PRINT("RC ring QPs created \n");
+
+    // Allocating a data structure for every step in the algorithm.
+    // The data structure will hold all the required data buffers for the
+    // step in the algorithm
+    rd_.iters_cnt = contextSize_;
+    rd_.iters = new StepCtx[contextSize_];
+    if (!rd_.iters) {
+      throw "malloc failed";
+    }
+
+    // For every step in the ring algorithm, we create a single umr vector
+    // that combines all the corresponding pieces from the usr_vec.
+    for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
+      size_t piece = (contextSize_ + myRank - step_idx) % contextSize_;
+      for (int k = 0; k < vectors_to_reduce; ++k) {
+        rd_.iters[step_idx].umr_iov.push_back(
+            new RefMem((*mem_.usr_vec[k])[piece]));
+      }
+      if (step_idx > 0) {
+        rd_.iters[step_idx].umr_iov.push_back(new RefMem(mem_.tmpMem->next())); // The next() operation is cyclic.
+      }
+      rd_.iters[step_idx].outgoing_buf = new UmrMem(rd_.iters[step_idx].umr_iov,
+                                                    ibv_ctx_);
+    }
+    PCX_RING_PRINT("UMR registration done \n");
+
+    // For convenience, we will define local variables
+    RingQp *right = rd_.pqp->right;
+    RingQp *left = rd_.pqp->left;
+
+    PCX_RING_PRINT("Starting All-Reduce \n");
+    PCX_RING_PRINT("Starting Scatter-Reduce stage \n");
+
+    int credits = pipeline_;
+
+    if (credits > 1) {
+      // reduce_write with 'require_cmpl==false' means that we perform reduce and perform RDMA write to the
+      // next rank. The RDMA write will send the outgoing_buf to the incoming
+      // buffer (wihch is the tmpMem) of the destination rank.
+      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
+      --credits;
+    } else { // Credits == 1
+      // reduce_write with 'require_cmpl==true' means that we perform reduce and perform RDMA write to the next rank and require a completion for the RDMA write.
+      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
+      sess->wait(right, true);
+      sess->send_credit(left);
+      sess->wait(right, false);
+
+      // Initialize number of credits
+      credits = pipeline_;
+    }
+    // Once a rank sent a message from the sending QP (to the rank to the right),
+    // the rank knows it should wait for the message from the left QP  the
+    sess->wait(left, false);
+
+    PCX_RING_PRINT("Performed first reduce in the Reduce-Scatter stage \n");
+
+    // The first reduce (first step in the ring algorithm)
+    for (unsigned step_idx = 1; step_idx < step_count; step_idx++) {
+      if (credits == 1) {
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
+        sess->wait(right, true);
+        sess->send_credit(left);  // Notifying the left rank that it can continue sending new data
+        sess->wait(right, false); // Waiting for the rank from the right to realse a credit that mean that our rank can continue sending the data to the right.
+        credits = pipeline_;
+      } else {
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
+        --credits;
+      }
+      sess->wait(left, false);
+    }
+
+    PCX_RING_PRINT("Reduce-Scatter stage done \n");
+
+    // Done with the AllReduce-Scatter. Every rank has a peice of the final
+    // result stored in it's tmpMem (in one of the slots).
+
+    // Start the All-Gather step!!
+    size_t last_frag = (step_count - 1);
+
+    for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
+      // Ref mem does not alocate new memory...
+      RefMem newVal((*mem_.tmpMem)[last_frag]); // Cyclic pipe...there is wraparound
+
+      size_t piece = (step_idx + myRank) % step_count;
+      if (credits == 1) {
+        sess->write(right, &newVal, step_count + step_idx, true);
+        // Copying "the reduce result from ptrs[0] to all ptrs[i]"
+        for (uint32_t buf_idx = 0; buf_idx < vectors_to_reduce; buf_idx++) {
+          sess->write(lqp, &newVal, rd_.iters[step_idx].umr_iov[buf_idx], false);
+        }
+        sess->wait(right, true);
+        sess->wait(lqp); //Waiting for the receive to finish in the loopback QP
+        sess->send_credit(left);
+        sess->wait(right); //for credit
+        credits = pipeline_;
+      } else {
+        sess->write(right, &newVal, step_count + step_idx, false);
+        for (uint32_t buf_idx = 0; buf_idx < vectors_to_reduce; buf_idx++) {
+          sess->write(lqp, &newVal, rd_.iters[step_idx].umr_iov[buf_idx], false);
+        }
+      }
+      sess->wait(left, false); //for data
+      ++last_frag;
+    }
+
+    PCX_RING_PRINT("All-Gather stage done \n");
+
+    // Making the NIC wait for the last credit although the user already got the reduce result from the lpq because in the run, we poll only the lpq.
+    if (credits != pipeline_) {
+      sess->send_credit(left);
+      sess->wait(right);
+      PCX_RING_PRINT("Returned all credits to peer \n");
+    }
+
+    PCX_RING_PRINT("Finalizing the graph\n");
+    sess->finish();
+    PCX_RING_PRINT("Finalized the graph\n");
+
+    ibv_ctx_->mtx.unlock();
+
+    PCX_RING_PRINT("Graph building stage done \n");
+
+    PCX_RING_PRINT("connect_and_prepare DONE \n");
   }
 
   // Debug function // TODO: Make this function private!
@@ -365,5 +555,12 @@ class PcxAllreduceChunkedRing {
   // The size of each chunk that will be moved through
   // ring throughout the run of the algorithm
   size_t pieceSize_;
+
+  // Used for out of band QPs exchange
+  uint32_t tag1;
+  uint32_t tag2;
+
+  // The struct that hold the communicator structure.
+  void* comm;
 
 };
