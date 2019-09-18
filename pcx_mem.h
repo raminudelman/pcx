@@ -33,6 +33,10 @@
 
 #include "verbs_ctx.h"
 
+// Used creating UMR (User Memory Region) and DM (Device Memory).
+// Note: Search for "ibv_exp" in the pcx_mem.cc file.
+#include <infiniband/verbs_exp.h>
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>

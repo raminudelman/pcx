@@ -46,10 +46,11 @@ extern "C" {
 //        the device supports DM (Device Memory). In case the device does not 
 //        support DM, PCX will not use MEMIC as available memory for reduction
 //        operations. 
-//     2. Create a UMR QP that supports Vector-CALC.
+//     2. Create a UMR QP that supports Vector-CALC (max_inl_send_klms).
 // The structs/functions/enums that are used from verbs_exp.h are:
 //     1. Function: ibv_exp_create_qp
 //     2. Struct:   struct ibv_exp_device_attr
+// Note: Search for "ibv_exp" in the verbs_ctx.cc file.
 #include <infiniband/verbs_exp.h>
 
 #include <inttypes.h>

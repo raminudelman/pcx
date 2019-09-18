@@ -34,6 +34,12 @@
 #include "udma_barrier.h"
 #include "pcx_mem.h"
 
+extern "C" {
+#include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
+// Used for creating WQE segments and creating mlx5dv objects.
+#include <infiniband/mlx5dv.h>
+}
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>

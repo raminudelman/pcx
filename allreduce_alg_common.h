@@ -3,6 +3,7 @@
 
 #include "third-party/pcx/pcx_mem.h"
 #include "third-party/pcx/qps.h"
+#include "third-party/pcx/verbs_ctx.h"
 
 // TODO: copy from Gloo/algorithm.h all the code regarding ReductionType etc.
 
