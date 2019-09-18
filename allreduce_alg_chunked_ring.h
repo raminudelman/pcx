@@ -415,6 +415,17 @@ class PcxAllreduceChunkedRing {
 #endif // VALIDITY_CHECK
   }
 
+  void print_values(volatile float *buf, int count) { // TODO: Move to utils.cc file?
+    int i = 0;
+    for (i = 0; i < count; ++i) {
+      if (i % 8 == 0) {
+        fprintf(stderr, "\n");
+      }
+      fprintf(stderr, "%.1f\t", buf[i]);
+    }
+    fprintf(stderr, "\n");
+  }
+
   private: 
 
   // The rank ID of the process

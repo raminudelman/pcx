@@ -263,6 +263,8 @@ PipeMem::PipeMem(void *buf, size_t length_, size_t depth_, VerbCtx *ctx)
   mem = new UsrMem(buf, length * depth, ctx);
 }
 
+PipeMem::~PipeMem() { delete (mem); }
+
 RefMem PipeMem::operator[](size_t idx) {
   return RefMem(this->mem, length * (idx % depth), length);
 }
@@ -274,13 +276,9 @@ RefMem PipeMem::next() {
 
 void PipeMem::print() {
   fprintf(stderr, "Pipelined Memory:\n");
-  print_values((volatile float *)this->mem->sg()->addr, length * depth / 4);
-}
+  volatile float *buf = (volatile float *)this->mem->sg()->addr;
+  int count = length * depth / 4;
 
-PipeMem::~PipeMem() { delete (mem); }
-
-
-void print_values(volatile float *buf, int count) { // TODO: Move to utils.cc file
   int i = 0;
   for (i = 0; i < count; ++i) {
     if (i % 8 == 0) {
@@ -291,22 +289,4 @@ void print_values(volatile float *buf, int count) { // TODO: Move to utils.cc fi
   fprintf(stderr, "\n");
 }
 
-// count is the number of *bytes* within the buffer
-void print_buffer(volatile void *buf, int count) { // TODO: Move to utils.cc file
-  int i = 0;
-  int line_width = 16;
-  int line_count = (count / sizeof(int)) / line_width;
-  int line_seperator = 16;
-  for (int line = 0; line < line_count; ++line) {
-    // After every 'line_seperator' lines, print \n
-    if ((line > 0) && (line >= line_seperator) && (line % line_seperator == 0)) {
-      fprintf(stderr, "\n");
-    }
-    fprintf(stderr, "#%02d: ", line);
-    for (int column = 0; column < 16; ++column) {
-      fprintf(stderr, "%08X  ", ntohl(((int *)buf)[line*line_width + column]));
-    }
-    fprintf(stderr, "\n");
-  }
-  fprintf(stderr, "\n");
-}
+

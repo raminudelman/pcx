@@ -278,4 +278,6 @@ private:
   // to the next expected CQE that one should wait for, when waiting for a 
   // the next collective operation to be finished.
   volatile struct cqe64 *cur_cqe; // TODO: Why not use the struct mlx5_cqe64 which is provided in the mlx5dv.h?
+
+  void print_buffer(volatile void *buf, int count);
 };

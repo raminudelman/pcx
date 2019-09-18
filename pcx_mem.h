@@ -145,6 +145,3 @@ private:
   size_t cur;
 };
 
-// Debug functions
-void print_values(volatile float *buf, int count);
-void print_buffer(volatile void *buf, int count);
