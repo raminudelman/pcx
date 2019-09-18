@@ -50,6 +50,9 @@ VerbCtx *VerbCtx::getInstance() {
 
 void VerbCtx::remInstance() {
   iniMtx.lock();
+  if (ref == 0) { // TODO: Is this "if" should be check only in "debug mode"?
+    PERR(CouldNotRemoveVerbsInstance);
+  }
   --ref;
   if (ref == 0) {
     delete (instance);

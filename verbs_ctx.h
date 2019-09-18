@@ -128,6 +128,7 @@ PCX_ERROR(FailedToOpenIbDevice)
 PCX_ERROR(CouldNotQueryDevice)
 PCX_ERROR(CouldNotModifyQpToRTR)
 PCX_ERROR(CouldNotModifyQpToRTS)
+PCX_ERROR(CouldNotRemoveVerbsInstance)
 
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
 #define CX_SIZE 16 // TODO: Check if this value is a proper value.
