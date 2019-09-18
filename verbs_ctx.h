@@ -33,11 +33,23 @@
 
 
 extern "C" {
+// Used for creating QPs/CQs.
+#include <infiniband/verbs.h>
+
 #include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
 #include <infiniband/mlx5dv.h>
 }
 
-// Needed for creating QPs that support Cross-Channel (CORE-Direct).
+// verbs_exp.h is included in order to:
+//     1. The "struct ibv_exp_device_attr" is used for quering the device
+//        for checking whether the device supports UMR (User Memory Region) and
+//        the device supports DM (Device Memory). In case the device does not 
+//        support DM, PCX will not use MEMIC as available memory for reduction
+//        operations. 
+//     2. Create a UMR QP that supports Vector-CALC.
+// The structs/functions/enums that are used from verbs_exp.h are:
+//     1. Function: ibv_exp_create_qp
+//     2. Struct:   struct ibv_exp_device_attr
 #include <infiniband/verbs_exp.h>
 
 #include <inttypes.h>
@@ -145,10 +157,11 @@ public:
   struct ibv_cq *umr_cq; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
   struct ibv_qp *umr_qp; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
 
-  struct ibv_comp_channel *channel;
-  struct ibv_exp_device_attr attrs;
+  struct ibv_exp_device_attr attrs; // Type defined in verbs_exp.h // TODO: Consider removing this member as it used only once for setting the maxMemic member.
   std::mutex mtx;
 
+  // Holds the amount of DM (Device Memory) (in Bytes?) that the device has.
+  // If the device does not suppport DM, this member will be set to 0.
   size_t maxMemic;
 };
 
