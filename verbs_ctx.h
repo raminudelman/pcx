@@ -130,7 +130,7 @@ PCX_ERROR(CouldNotModifyQpToRTR)
 PCX_ERROR(CouldNotModifyQpToRTS)
 
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
-#define CX_SIZE 16 // TODO: Should be removed
+#define CX_SIZE 16 // TODO: Check if this value is a proper value.
 
 // PCX performs the reduction operation directly on the NIC.
 // This number defines how many elements are supported to be reduced on a
@@ -156,6 +156,8 @@ public:
   // These QPs are used for registering UMR memory
   struct ibv_cq *umr_cq; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
   struct ibv_qp *umr_qp; // TODO: Can this be defined as local variable in VerbCtx() c'tor?
+
+  struct ibv_comp_channel *channel; // TODO: This is unused. Can it be removed?
 
   struct ibv_exp_device_attr attrs; // Type defined in verbs_exp.h // TODO: Consider removing this member as it used only once for setting the maxMemic member.
   std::mutex mtx;
