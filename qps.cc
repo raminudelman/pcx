@@ -618,6 +618,14 @@ LambdaInstruction DoublingQp::write(NetMem *local, bool require_cmpl) {
   ++wqe_count;
   ++this->pair->cqe_count;
 
+  if (require_cmpl) {
+    if (has_scq) {
+      ++scqe_count;
+    } else {
+      ++cqe_count;
+    }
+  }
+
   LambdaInstruction lambda = [this, local, require_cmpl]() {
     this->qp->write(local, this->remote, require_cmpl);
   };
