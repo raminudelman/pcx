@@ -4,10 +4,6 @@ RingQp::RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm,
                uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
     : TransportQp(ctx), incoming(incomingBuffer) {
   this->has_scq = true;
-  using namespace std::placeholders;
-
-  exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
-  barrier = std::bind(func, comm, _1, _2, _3, peer, tag + ((unsigned int) 0xf000) );
 }
 
 RingQp::~RingQp() {
@@ -16,8 +12,7 @@ RingQp::~RingQp() {
   ibv_destroy_cq(ibcq);
 }
 
-void RingQp::init() {
-
+void RingQp::init_rc_qp(){
   ibcq = cd_create_cq(ctx, cqe_count);
   if (!ibcq) {
     PERR(CQCreateFailed);
@@ -29,56 +24,49 @@ void RingQp::init() {
   }
 
   ibqp = rc_qp_create(ibcq, ctx, wqe_count, cqe_count, ibscq);
-
   if (!ibqp) {
     PERR(QPCreateFailed);
   }
+}
 
-  rd_peer_info_t local_info, remote_info;
-
-  local_info.buf = (uintptr_t)(*incoming)[0].sg()->addr;
-  local_info.rkey = (*incoming)[0].getMr()->rkey;
-  rc_qp_get_addr(ibqp, &local_info.addr);
-
-  //  fprintf(stderr,"sent: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid =
-  //  %u, psn = %ld\n", local_info.buf,
-  //                local_info.rkey, local_info.addr.qpn,local_info.addr.lid
-  //                ,local_info.addr.gid ,local_info.addr.psn);
-
-  ctx->mtx.unlock();
-  exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
-  ctx->mtx.lock();
-
-  //  fprintf(stderr,"recv: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid =
-  //  %u, psn = %ld\n", remote_info.buf, remote_info.rkey, remote_info.addr.qpn
-  //  ,
-  //                                                        remote_info.addr.lid,
-  //                                                        remote_info.addr.gid,
-  //                                                        remote_info.addr.psn
-  //                                                        );
-
-  RemoteMem tmp_remote(remote_info.buf, remote_info.rkey);
-  remote =
-      new PipeMem(incoming->getLength(), incoming->getDepth(), &tmp_remote);
-
-  rc_qp_connect(&remote_info.addr, ibqp);
-
-
-  //barrier
-
-  int ack;
-  ctx->mtx.unlock();
-  barrier((void*) &ack, (void*) &ack, sizeof(int));
-  ctx->mtx.lock();
-
+void RingQp::init_qp_ctx(){
   qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
 
   if (this->pair->qp) {
     this->pair->qp->set_pair(this->qp);
     this->qp->set_pair(this->pair->qp);
   }
-
   QP_PRINT("RingQP initiated (ID = %d, wqe_count = %d, cqe_count = %d, scqe_count = %d, peer QP ID = %d) \n", id, wqe_count, cqe_count, scqe_count, pair->id);
+}
+
+rd_peer_info_t RingQp::get_local_info(){
+    rd_peer_info_t local_info;
+    local_info.buf = (uintptr_t)(*incoming)[0].sg()->addr;
+    local_info.rkey = (*incoming)[0].getMr()->rkey;
+    rc_qp_get_addr(ibqp, &local_info.addr);
+    return local_info;
+}
+
+void RingQp::set_remote_info(rd_peer_info_t remote_info){
+    RemoteMem tmp_remote(remote_info.buf, remote_info.rkey);
+    remote = new PipeMem(incoming->getLength(), incoming->getDepth(), &tmp_remote);
+    rc_qp_connect(&remote_info.addr, ibqp);
+}
+
+void RingQp::init() {
+  rd_peer_info_t local_info, remote_info;
+  init_rc_qp();
+  local_info = get_local_info();
+  ctx->mtx.unlock();
+  exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
+  ctx->mtx.lock();
+  set_remote_info(remote_info);
+  //barrier
+  int ack;
+  ctx->mtx.unlock();
+  barrier((void*) &ack, (void*) &ack, sizeof(int));
+  ctx->mtx.lock();
+  init_qp_ctx();
 }
 
 LambdaInstruction RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {
@@ -126,9 +114,23 @@ LambdaInstruction RingQp::reduce_write(NetMem *local, size_t pos, uint16_t num_v
 }
 
 void RingQps::init(){
-    fprintf(stderr, "ringqps init\n");
-}
+    rd_peer_info_t local_info_left, remote_info_left;
+    rd_peer_info_t local_info_right, remote_info_right;
 
-void RingQps::fin(){
-    fprintf(stderr, "ringqps fin\n");
+    left->init_rc_qp();
+    right->init_rc_qp();
+
+    local_info_left = left->get_local_info();
+    local_info_right = right->get_local_info();
+    left->ctx->mtx.unlock();
+    (*ring_exchange)(comm, &local_info_left, &local_info_right, &remote_info_left, &remote_info_right, sizeof(rd_peer_info_t), leftRank, rightRank, tag1, tag2);
+    left->ctx->mtx.lock();
+
+    left->set_remote_info(remote_info_left);
+    right->set_remote_info(remote_info_right);
+
+    //TODO: Do we need lock and barrier here?
+
+    left->init_qp_ctx();
+    right->init_qp_ctx();
 }

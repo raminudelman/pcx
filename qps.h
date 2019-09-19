@@ -40,6 +40,10 @@ typedef std::queue<LambdaInstruction> InsQueue;
 
 class GraphObj {
 public:
+  // Holds a unique number for the Obj.
+  // Every Obj within the CommmGraph has a unique number 
+  // which is given during CommmGraph::reqQp.
+  uint16_t id;
   virtual void init() = 0;
   virtual void fin() = 0;
 };
@@ -67,13 +71,9 @@ public:
 
   int recv_enables;
 
-  // Holds a unique number for the QP.
-  // Every QP within the CommmGraph has a unique number 
-  // which is given during CommmGraph::reqQp.
-  uint16_t id;
-
   qp_ctx *qp;
 
+  VerbCtx *ctx;
 protected:
 
   struct ibv_qp *ibqp;
@@ -85,7 +85,7 @@ protected:
   // is used only for the Receive Queue of the QP.
   struct ibv_cq *ibcq;
 
-  VerbCtx *ctx;
+
 
   struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, 
                               void *cq_context = NULL,

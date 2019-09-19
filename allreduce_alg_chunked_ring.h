@@ -32,8 +32,8 @@
 //    recv_buf: The buffer that recieve data from the rank with
 //              rank id equals to 'peer'.
 //
-int ring_exchange(void *comm, volatile void *send_buf, volatile void *recv_buf,
-                  size_t size, uint32_t peer, uint32_t tag);
+int ring_exchange(void *comm, volatile void *send_buf_left, volatile void *send_buf_right, volatile void *recv_buf_left,
+                  volatile void *recv_buf_right, size_t size, uint32_t peer_left, uint32_t peer_right, uint32_t tag1, uint32_t tag2);
 
 template <typename T>
 class PcxAllreduceChunkedRing {
@@ -181,20 +181,14 @@ class PcxAllreduceChunkedRing {
     rd_.ring_qps = new RingQps(&ring_exchange, comm, myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
     RingQp *right = rd_.ring_qps->getRightQp();
     RingQp *left = rd_.ring_qps->getLeftQp();
-    if (myRank % 2) {
-      sess->regQp(right);
-      sess->regQp(left);
-    }
-    else{
-      sess->regQp(left);
-      sess->regQp(right);
-    }
+
+    sess->regQp(rd_.ring_qps);
+
     PCX_RING_PRINT("RC ring QPs created \n");
 
     // Allocating a data structure for every step in the algorithm.
     // The data structure will hold all the required data buffers for the
     // step in the algorithm
-    rd_.iters_cnt = contextSize_;
     rd_.iters = new StepCtx[contextSize_];
     if (!rd_.iters) {
       throw "malloc failed";
@@ -435,38 +429,6 @@ class PcxAllreduceChunkedRing {
 
   mem_registration_ring_t mem_;
 
-  class RingPair { // TODO: Move to new file pcx_ring.h
-  public:
-    RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file
-             uint32_t myRank, uint32_t commSize, uint32_t tag1,
-             uint32_t tag2, PipeMem *incoming, VerbCtx *ctx) {
-      uint32_t rightRank = (myRank + 1) % commSize;
-      uint32_t leftRank = (myRank - 1 + commSize) % commSize;
-  
-      if (myRank % 2) { // Odd rank
-        this->right = new RingQp(ctx, func, comm, rightRank, tag1, incoming);
-        cgraph->regQp(this->right);
-        this->left = new RingQp(ctx, func, comm, leftRank, tag2, incoming);
-        cgraph->regQp(this->left);
-      } else { // Even rank
-        this->left = new RingQp(ctx, func, comm, leftRank, tag1, incoming);
-        cgraph->regQp(this->left);
-        this->right = new RingQp(ctx, func, comm, rightRank, tag2, incoming);
-        cgraph->regQp(this->right);
-      }
-      right->set_pair(left);
-      left->set_pair(right);
-    }
-  
-    ~RingPair() {
-      delete (right);
-      delete (left);
-    }
-  
-    RingQp *right;
-    RingQp *left;
-  };
-
   class StepCtx {
   public:
     StepCtx() : outgoing_buf(NULL), umr_iov() {};
@@ -484,10 +446,6 @@ class PcxAllreduceChunkedRing {
     ManagementQp *mqp; // mqp stands for "Management Queue Pair"
     LoopbackQp *lqp;   // lqp stands for "Loopback Queue Pair"
     RingQps *ring_qps; // pair of QP
-
-    // Holds the number of iterations that will be executed during the All-Reduce
-    // algorithm
-    unsigned iters_cnt;
 
     // Each element in the array holds all the data structure that the algorithm
     // operates on during each step of the algorithm.

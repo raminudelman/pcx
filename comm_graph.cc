@@ -33,9 +33,21 @@ void CommGraph::regQp(RingQp *qp) {
   QP_PRINT("Registered RingQp with ID='%d' \n", qp->id);
 }
 
-void CommGraph::regQpCommon(PcxQp *qp) {
-  this->objects.push_back(qp);
-  qp->id = this->objects.size();
+void CommGraph::regQp(RingQps *qps) {
+  RingQp *left = qps->getLeftQp();
+  RingQp *right = qps->getRightQp();
+
+  LambdaInstruction lambda1 = this->mqp->cd_recv_enable(left);
+  LambdaInstruction lambda2 = this->mqp->cd_recv_enable(right);
+  this->enqueue(lambda1);
+  this->enqueue(lambda2);
+  regQpCommon(qps);
+  QP_PRINT("Registered RingQp with ID='%d' \n", qp->id);
+}
+
+void CommGraph::regQpCommon(GraphObj *obj) {
+  this->objects.push_back(obj);
+  obj->id = this->objects.size();
 }
 
 void CommGraph::enqueue(LambdaInstruction &ins) { 

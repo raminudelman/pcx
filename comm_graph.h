@@ -21,6 +21,7 @@ public:
   void regQp(LoopbackQp *qp);
   void regQp(DoublingQp *qp);
   void regQp(RingQp *qp);
+  void regQp(RingQps *qps);
 
   void wait(PcxQp *slave_qp, bool wait_scq = false);
 
@@ -55,6 +56,6 @@ public:
   // TODO: Cannot change to vector of TransportQps because ManagementQp is also registered... need to seprate it from the list?
 
 private:
-  void regQpCommon(PcxQp *qp);
+  void regQpCommon(GraphObj *obj);
 
 };

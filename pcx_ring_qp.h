@@ -2,11 +2,16 @@
 #include "qps.h"
 
 class RingQp : public TransportQp
-{ // TODO: Move to new file pcx_ring.h
+{
 public:
     RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm, uint32_t peer,
            uint32_t tag, PipeMem *incomingBuffer);
     ~RingQp();
+
+    void init_rc_qp();
+    void init_qp_ctx();
+    rd_peer_info_t get_local_info();
+    void set_remote_info(rd_peer_info_t remote_info);
 
     void init();
     LambdaInstruction write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
@@ -18,78 +23,52 @@ protected:
     PipeMem *incoming;
 };
 
-enum {RingQpLeft, RingQpRight};
-
+typedef int (*ring_exchange_func)(void *, volatile void *, volatile void *, volatile void *, volatile void *,
+                                 size_t, uint32_t, uint32_t, uint32_t, uint32_t);
 class RingQps : public GraphObj
 {
 private:
     RingQp *left;
     RingQp *right;
-
+    uint32_t rightRank;
+    uint32_t leftRank;
+    ring_exchange_func ring_exchange;
+    uint32_t tag1;
+    uint32_t tag2;
+    void *comm;
 public:
-    RingQps(p2p_exchange_func func, void *comm,
-             uint32_t myRank, uint32_t commSize, uint32_t tag1,
-             uint32_t tag2, PipeMem *incoming, VerbCtx *ctx) {
-      uint32_t rightRank = (myRank + 1) % commSize;
-      uint32_t leftRank = (myRank - 1 + commSize) % commSize;
+    RingQps(ring_exchange_func func, void *_comm,
+            uint32_t myRank, uint32_t commSize, uint32_t _tag1,
+            uint32_t _tag2, PipeMem *incoming, VerbCtx *ctx): tag1(_tag1), tag2(_tag2), comm(_comm)
+    {
+        leftRank = (myRank - 1 + commSize) % commSize;
+        rightRank = (myRank + 1) % commSize;
+        ring_exchange = func;
 
-      if (myRank % 2) { // Odd rank
-        this->right = new RingQp(ctx, func, comm, rightRank, tag1, incoming);
-//        cgraph->regQp(this->right);
-        this->left = new RingQp(ctx, func, comm, leftRank, tag2, incoming);
-//        cgraph->regQp(this->left);
-      } else { // Even rank
-        this->left = new RingQp(ctx, func, comm, leftRank, tag1, incoming);
-//        cgraph->regQp(this->left);
-        this->right = new RingQp(ctx, func, comm, rightRank, tag2, incoming);
- //       cgraph->regQp(this->right);
-      }
-      right->set_pair(left);
-      left->set_pair(right);
+        this->right = new RingQp(ctx, NULL, comm, rightRank, tag1, incoming);
+        this->left = new RingQp(ctx, NULL, comm, leftRank, tag2, incoming);
+        right->set_pair(left);
+        left->set_pair(right);
     }
-    RingQp* getLeftQp(){
+    RingQp *getLeftQp()
+    {
         return left;
     }
-    RingQp* getRightQp(){
+    RingQp *getRightQp()
+    {
         return right;
     }
 
-    ~RingQps() {
-      delete (right);
-      delete (left);
+    ~RingQps()
+    {
+        delete (right);
+        delete (left);
     }
     void init();
-    void fin();
+    void fin()
+    {
+        //TODO: check if order is important
+        left->fin();
+        right->fin();
+    }
 };
-
-//   class RingPair { // TODO: Move to new file pcx_ring.h
-//   public:
-//     RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file
-//              uint32_t myRank, uint32_t commSize, uint32_t tag1,
-//              uint32_t tag2, PipeMem *incoming, VerbCtx *ctx) {
-//       uint32_t rightRank = (myRank + 1) % commSize;
-//       uint32_t leftRank = (myRank - 1 + commSize) % commSize;
-
-//       if (myRank % 2) { // Odd rank
-//         this->right = new RingQp(ctx, func, comm, rightRank, tag1, incoming);
-//         cgraph->regQp(this->right);
-//         this->left = new RingQp(ctx, func, comm, leftRank, tag2, incoming);
-//         cgraph->regQp(this->left);
-//       } else { // Even rank
-//         this->left = new RingQp(ctx, func, comm, leftRank, tag1, incoming);
-//         cgraph->regQp(this->left);
-//         this->right = new RingQp(ctx, func, comm, rightRank, tag2, incoming);
-//         cgraph->regQp(this->right);
-//       }
-//       right->set_pair(left);
-//       left->set_pair(right);
-//     }
-
-//     ~RingPair() {
-//       delete (right);
-//       delete (left);
-//     }
-
-//     RingQp *right;
-//     RingQp *left;
-//   };
