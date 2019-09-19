@@ -88,7 +88,7 @@ class PcxAllreduceChunkedRing {
     delete (rd_.mqp);
     delete (rd_.lqp);
     delete (rd_.graph);
-    delete (rd_.pqp);
+    delete(rd_.ring_qps);
     delete[](rd_.iters);
     // Deregister memory
     delete (mem_.tmpMem);
@@ -178,8 +178,17 @@ class PcxAllreduceChunkedRing {
     // Establish a connection with each peer
     uint32_t myRank = contextRank_;
 
-    rd_.pqp = new RingPair(sess, &ring_exchange, comm,
-                           myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
+    rd_.ring_qps = new RingQps(&ring_exchange, comm, myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
+    RingQp *right = rd_.ring_qps->getRightQp();
+    RingQp *left = rd_.ring_qps->getLeftQp();
+    if (myRank % 2) {
+      sess->regQp(right);
+      sess->regQp(left);
+    }
+    else{
+      sess->regQp(left);
+      sess->regQp(right);
+    }
     PCX_RING_PRINT("RC ring QPs created \n");
 
     // Allocating a data structure for every step in the algorithm.
@@ -206,8 +215,7 @@ class PcxAllreduceChunkedRing {
     PCX_RING_PRINT("UMR registration done \n");
 
     // For convenience, we will define local variables
-    RingQp *right = rd_.pqp->right;
-    RingQp *left = rd_.pqp->left;
+    
 
     PCX_RING_PRINT("Starting All-Reduce \n");
     PCX_RING_PRINT("Starting Scatter-Reduce stage \n");
@@ -340,11 +348,12 @@ class PcxAllreduceChunkedRing {
     fprintf(stderr, "=======================================\n");
     fprintf(stderr, "Right QP: Run #%d: %s\n", mone_, msg);
     fprintf(stderr, "=======================================\n");
-    rd_.pqp->right->print();
-    fprintf(stderr, "=======================================\n");
-    fprintf(stderr, "Left QP: Run #%d: %s\n", mone_, msg);
-    fprintf(stderr, "=======================================\n");
-    rd_.pqp->left->print();
+    //TODO: replace pqp with ring_qps
+    // rd_.pqp->right->print();
+    // fprintf(stderr, "=======================================\n");
+    // fprintf(stderr, "Left QP: Run #%d: %s\n", mone_, msg);
+    // fprintf(stderr, "=======================================\n");
+    // rd_.pqp->left->print();
 #endif // HANG_REPORT
   }
 
@@ -474,7 +483,7 @@ class PcxAllreduceChunkedRing {
 
     ManagementQp *mqp; // mqp stands for "Management Queue Pair"
     LoopbackQp *lqp;   // lqp stands for "Loopback Queue Pair"
-    RingPair *pqp;     // pqp stands for "Pair Queue Pair"
+    RingQps *ring_qps; // pair of QP
 
     // Holds the number of iterations that will be executed during the All-Reduce
     // algorithm
