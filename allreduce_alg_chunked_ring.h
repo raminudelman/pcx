@@ -114,7 +114,6 @@ class PcxAllreduceChunkedRing {
       ++count;
       debug_hang_report("Stuck", count);
     }
-    debug_check_output();
     ++mone_;
     PCX_RING_PRINT("[%d] Done running PcxRingAllReduce \n", contextRank_);
   }
@@ -197,14 +196,12 @@ class PcxAllreduceChunkedRing {
     for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
       size_t piece = (contextSize_ + myRank - step_idx) % contextSize_;
       for (int k = 0; k < vectors_to_reduce; ++k) {
-        rd_.iters[step_idx].umr_iov.push_back(
-            new RefMem((*mem_.usr_vec[k])[piece]));
+        rd_.iters[step_idx].umr_iov.push_back(new RefMem((*mem_.usr_vec[k])[piece]));
       }
       if (step_idx > 0) {
         rd_.iters[step_idx].umr_iov.push_back(new RefMem(mem_.tmpMem->next())); // The next() operation is cyclic.
       }
-      rd_.iters[step_idx].outgoing_buf = new UmrMem(rd_.iters[step_idx].umr_iov,
-                                                    ibv_ctx_);
+      rd_.iters[step_idx].outgoing_buf = new UmrMem(rd_.iters[step_idx].umr_iov, ibv_ctx_);
     }
     PCX_RING_PRINT("UMR registration done \n");
 
@@ -217,40 +214,30 @@ class PcxAllreduceChunkedRing {
 
     int credits = pipeline_;
 
-    if (credits > 1) {
-      // reduce_write with 'require_cmpl==false' means that we perform reduce and perform RDMA write to the
-      // next rank. The RDMA write will send the outgoing_buf to the incoming
-      // buffer (wihch is the tmpMem) of the destination rank.
-      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
-      --credits;
-    } else { // Credits == 1
-      // reduce_write with 'require_cmpl==true' means that we perform reduce and perform RDMA write to the next rank and require a completion for the RDMA write.
-      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
-      sess->wait(right, true);
-      sess->send_credit(left);
-      sess->wait(right, false);
-
-      // Initialize number of credits
-      credits = pipeline_;
-    }
-    // Once a rank sent a message from the sending QP (to the rank to the right),
-    // the rank knows it should wait for the message from the left QP  the
     sess->wait(left, false);
 
     PCX_RING_PRINT("Performed first reduce in the Reduce-Scatter stage \n");
 
     // The first reduce (first step in the ring algorithm)
-    for (unsigned step_idx = 1; step_idx < step_count; step_idx++) {
+    for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
+      int num_vectors = rd_.iters[step_idx].umr_iov.size();
       if (credits == 1) {
-        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
+        // reduce_write with 'require_cmpl==true' means that we perform reduce and perform RDMA write to the next rank and require a completion for the RDMA write.
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, num_vectors, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
         sess->wait(right, true);
         sess->send_credit(left);  // Notifying the left rank that it can continue sending new data
         sess->wait(right, false); // Waiting for the rank from the right to realse a credit that mean that our rank can continue sending the data to the right.
+        // Initialize number of credits
         credits = pipeline_;
       } else {
-        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
+      // reduce_write with 'require_cmpl==false' means that we perform reduce and perform RDMA write to the
+      // next rank. The RDMA write will send the outgoing_buf to the incoming
+      // buffer (wihch is the tmpMem) of the destination rank.
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, num_vectors, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
         --credits;
       }
+      // Once a rank sent a message from the sending QP (to the rank to the right),
+      // the rank knows it should wait for the message from the left QP  the
       sess->wait(left, false);
     }
 
@@ -359,60 +346,6 @@ class PcxAllreduceChunkedRing {
     fprintf(stderr, "=======================================\n");
     rd_.pqp->left->print();
 #endif // HANG_REPORT
-  }
-
-  // Debug function // TODO: Make this function private!
-  void debug_check_output()
-  {
-#ifdef VALIDITY_CHECK
-    unsigned step_count = 0;
-    while ((1 << ++step_count) < contextSize_)
-      ;
-
-    for (int i = 0; i < ptrs_.size(); ++i)
-    {
-      // fprintf(stderr, "Output %d:\n",i);
-      int err = 0;
-      float *buf = (float *)ptrs_[i];
-      // print_values(buf, count_);
-      for (int k = 0; k < count_; ++k)
-      {
-        int expected_base =
-            ((k + mone_) * 2 + ptrs_.size() - 1) * ptrs_.size() / 2;
-        int expected_max =
-            ((k + mone_ + contextSize_ - 1) * 2 + ptrs_.size() - 1) *
-            ptrs_.size() / 2;
-        float expected_result =
-            (float)(expected_base + expected_max) * contextSize_ / 2;
-        float result = buf[k];
-        if (result != expected_result)
-        {
-          fprintf(stderr,
-                  "ERROR: In Iteration %d\n expected: %.2f, got: %.2f\n", mone_,
-                  expected_result, result);
-          for (int i = 0; i < ptrs_.size(); ++i)
-          {
-            fprintf(stderr, "Input %d:\n", i);
-            float buf[count_];
-            for (int k = 0; k < count_; ++k)
-            {
-              buf[k] = ((float)k + i) + contextRank_ + mone_;
-            }
-            print_values(buf, count_);
-          }
-          mem_.tmpMem->print();
-          fprintf(stderr, "Output %d:\n", i);
-          print_values(buf, count_);
-          // err = 1;
-          break;
-        }
-      }
-      if (err)
-      {
-        break;
-      }
-    }
-#endif // VALIDITY_CHECK
   }
 
   void print_values(volatile float *buf, int count) { // TODO: Move to utils.cc file?
