@@ -1,7 +1,6 @@
 #include "pcx_ring_qp.h"
 
-RingQp::RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm,
-               uint32_t peer, uint32_t tag, PipeMem *incomingBuffer)
+RingQp::RingQp(VerbCtx *ctx, PipeMem *incomingBuffer)
     : TransportQp(ctx), incoming(incomingBuffer) {
   this->has_scq = true;
 }

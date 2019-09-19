@@ -4,8 +4,7 @@
 class RingQp : public TransportQp
 {
 public:
-    RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm, uint32_t peer,
-           uint32_t tag, PipeMem *incomingBuffer);
+    RingQp(VerbCtx *ctx, PipeMem *incomingBuffer);
     ~RingQp();
 
     void init_rc_qp();
@@ -45,8 +44,8 @@ public:
         rightRank = (myRank + 1) % commSize;
         ring_exchange = func;
 
-        this->right = new RingQp(ctx, NULL, comm, rightRank, tag1, incoming);
-        this->left = new RingQp(ctx, NULL, comm, leftRank, tag2, incoming);
+        this->right = new RingQp(ctx, incoming);
+        this->left = new RingQp(ctx, incoming);
         right->set_pair(left);
         left->set_pair(right);
     }
