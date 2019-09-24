@@ -32,8 +32,8 @@
 //    recv_buf: The buffer that recieve data from the rank with
 //              rank id equals to 'peer'.
 //
-int ring_exchange(void *comm, volatile void *send_buf, volatile void *recv_buf,
-                  size_t size, uint32_t peer, uint32_t tag);
+int ring_exchange(void *comm, volatile void *send_buf_left, volatile void *send_buf_right, volatile void *recv_buf_left,
+                  volatile void *recv_buf_right, size_t size, uint32_t peer_left, uint32_t peer_right, uint32_t tag1, uint32_t tag2);
 
 template <typename T>
 class PcxAllreduceChunkedRing {
@@ -88,7 +88,7 @@ class PcxAllreduceChunkedRing {
     delete (rd_.mqp);
     delete (rd_.lqp);
     delete (rd_.graph);
-    delete (rd_.pqp);
+    delete(rd_.ring_qps);
     delete[](rd_.iters);
     // Deregister memory
     delete (mem_.tmpMem);
@@ -114,7 +114,6 @@ class PcxAllreduceChunkedRing {
       ++count;
       debug_hang_report("Stuck", count);
     }
-    debug_check_output();
     ++mone_;
     PCX_RING_PRINT("[%d] Done running PcxRingAllReduce \n", contextRank_);
   }
@@ -179,14 +178,17 @@ class PcxAllreduceChunkedRing {
     // Establish a connection with each peer
     uint32_t myRank = contextRank_;
 
-    rd_.pqp = new RingPair(sess, &ring_exchange, comm,
-                           myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
+    rd_.ring_qps = new RingQps(&ring_exchange, comm, myRank, contextSize_, tag1, tag2, mem_.tmpMem, ibv_ctx_);
+    RingQp *right = rd_.ring_qps->getRightQp();
+    RingQp *left = rd_.ring_qps->getLeftQp();
+
+    sess->regQp(rd_.ring_qps);
+
     PCX_RING_PRINT("RC ring QPs created \n");
 
     // Allocating a data structure for every step in the algorithm.
     // The data structure will hold all the required data buffers for the
     // step in the algorithm
-    rd_.iters_cnt = contextSize_;
     rd_.iters = new StepCtx[contextSize_];
     if (!rd_.iters) {
       throw "malloc failed";
@@ -197,60 +199,47 @@ class PcxAllreduceChunkedRing {
     for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
       size_t piece = (contextSize_ + myRank - step_idx) % contextSize_;
       for (int k = 0; k < vectors_to_reduce; ++k) {
-        rd_.iters[step_idx].umr_iov.push_back(
-            new RefMem((*mem_.usr_vec[k])[piece]));
+        rd_.iters[step_idx].umr_iov.push_back(new RefMem((*mem_.usr_vec[k])[piece]));
       }
       if (step_idx > 0) {
         rd_.iters[step_idx].umr_iov.push_back(new RefMem(mem_.tmpMem->next())); // The next() operation is cyclic.
       }
-      rd_.iters[step_idx].outgoing_buf = new UmrMem(rd_.iters[step_idx].umr_iov,
-                                                    ibv_ctx_);
+      rd_.iters[step_idx].outgoing_buf = new UmrMem(rd_.iters[step_idx].umr_iov, ibv_ctx_);
     }
     PCX_RING_PRINT("UMR registration done \n");
 
     // For convenience, we will define local variables
-    RingQp *right = rd_.pqp->right;
-    RingQp *left = rd_.pqp->left;
+    
 
     PCX_RING_PRINT("Starting All-Reduce \n");
     PCX_RING_PRINT("Starting Scatter-Reduce stage \n");
 
     int credits = pipeline_;
 
-    if (credits > 1) {
-      // reduce_write with 'require_cmpl==false' means that we perform reduce and perform RDMA write to the
-      // next rank. The RDMA write will send the outgoing_buf to the incoming
-      // buffer (wihch is the tmpMem) of the destination rank.
-      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
-      --credits;
-    } else { // Credits == 1
-      // reduce_write with 'require_cmpl==true' means that we perform reduce and perform RDMA write to the next rank and require a completion for the RDMA write.
-      sess->reduce_write(right, rd_.iters[0].outgoing_buf, 0, vectors_to_reduce, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
-      sess->wait(right, true);
-      sess->send_credit(left);
-      sess->wait(right, false);
-
-      // Initialize number of credits
-      credits = pipeline_;
-    }
-    // Once a rank sent a message from the sending QP (to the rank to the right),
-    // the rank knows it should wait for the message from the left QP  the
     sess->wait(left, false);
 
     PCX_RING_PRINT("Performed first reduce in the Reduce-Scatter stage \n");
 
     // The first reduce (first step in the ring algorithm)
-    for (unsigned step_idx = 1; step_idx < step_count; step_idx++) {
+    for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
+      int num_vectors = rd_.iters[step_idx].umr_iov.size();
       if (credits == 1) {
-        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
+        // reduce_write with 'require_cmpl==true' means that we perform reduce and perform RDMA write to the next rank and require a completion for the RDMA write.
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, num_vectors, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, true);
         sess->wait(right, true);
         sess->send_credit(left);  // Notifying the left rank that it can continue sending new data
         sess->wait(right, false); // Waiting for the rank from the right to realse a credit that mean that our rank can continue sending the data to the right.
+        // Initialize number of credits
         credits = pipeline_;
       } else {
-        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, (vectors_to_reduce + 1), MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
+      // reduce_write with 'require_cmpl==false' means that we perform reduce and perform RDMA write to the
+      // next rank. The RDMA write will send the outgoing_buf to the incoming
+      // buffer (wihch is the tmpMem) of the destination rank.
+        sess->reduce_write(right, rd_.iters[step_idx].outgoing_buf, step_idx, num_vectors, MLX5DV_VECTOR_CALC_OP_ADD, MLX5DV_VECTOR_CALC_DATA_TYPE_FLOAT32, false);
         --credits;
       }
+      // Once a rank sent a message from the sending QP (to the rank to the right),
+      // the rank knows it should wait for the message from the left QP  the
       sess->wait(left, false);
     }
 
@@ -353,66 +342,13 @@ class PcxAllreduceChunkedRing {
     fprintf(stderr, "=======================================\n");
     fprintf(stderr, "Right QP: Run #%d: %s\n", mone_, msg);
     fprintf(stderr, "=======================================\n");
-    rd_.pqp->right->print();
-    fprintf(stderr, "=======================================\n");
-    fprintf(stderr, "Left QP: Run #%d: %s\n", mone_, msg);
-    fprintf(stderr, "=======================================\n");
-    rd_.pqp->left->print();
+    //TODO: replace pqp with ring_qps
+    // rd_.pqp->right->print();
+    // fprintf(stderr, "=======================================\n");
+    // fprintf(stderr, "Left QP: Run #%d: %s\n", mone_, msg);
+    // fprintf(stderr, "=======================================\n");
+    // rd_.pqp->left->print();
 #endif // HANG_REPORT
-  }
-
-  // Debug function // TODO: Make this function private!
-  void debug_check_output()
-  {
-#ifdef VALIDITY_CHECK
-    unsigned step_count = 0;
-    while ((1 << ++step_count) < contextSize_)
-      ;
-
-    for (int i = 0; i < ptrs_.size(); ++i)
-    {
-      // fprintf(stderr, "Output %d:\n",i);
-      int err = 0;
-      float *buf = (float *)ptrs_[i];
-      // print_values(buf, count_);
-      for (int k = 0; k < count_; ++k)
-      {
-        int expected_base =
-            ((k + mone_) * 2 + ptrs_.size() - 1) * ptrs_.size() / 2;
-        int expected_max =
-            ((k + mone_ + contextSize_ - 1) * 2 + ptrs_.size() - 1) *
-            ptrs_.size() / 2;
-        float expected_result =
-            (float)(expected_base + expected_max) * contextSize_ / 2;
-        float result = buf[k];
-        if (result != expected_result)
-        {
-          fprintf(stderr,
-                  "ERROR: In Iteration %d\n expected: %.2f, got: %.2f\n", mone_,
-                  expected_result, result);
-          for (int i = 0; i < ptrs_.size(); ++i)
-          {
-            fprintf(stderr, "Input %d:\n", i);
-            float buf[count_];
-            for (int k = 0; k < count_; ++k)
-            {
-              buf[k] = ((float)k + i) + contextRank_ + mone_;
-            }
-            print_values(buf, count_);
-          }
-          mem_.tmpMem->print();
-          fprintf(stderr, "Output %d:\n", i);
-          print_values(buf, count_);
-          // err = 1;
-          break;
-        }
-      }
-      if (err)
-      {
-        break;
-      }
-    }
-#endif // VALIDITY_CHECK
   }
 
   void print_values(volatile float *buf, int count) { // TODO: Move to utils.cc file?
@@ -493,38 +429,6 @@ class PcxAllreduceChunkedRing {
 
   mem_registration_ring_t mem_;
 
-  class RingPair { // TODO: Move to new file pcx_ring.h
-  public:
-    RingPair(CommGraph *cgraph, p2p_exchange_func func, void *comm, // TODO: Move to some "ring algorithms qps" file
-             uint32_t myRank, uint32_t commSize, uint32_t tag1,
-             uint32_t tag2, PipeMem *incoming, VerbCtx *ctx) {
-      uint32_t rightRank = (myRank + 1) % commSize;
-      uint32_t leftRank = (myRank - 1 + commSize) % commSize;
-  
-      if (myRank % 2) { // Odd rank
-        this->right = new RingQp(ctx, func, comm, rightRank, tag1, incoming);
-        cgraph->regQp(this->right);
-        this->left = new RingQp(ctx, func, comm, leftRank, tag2, incoming);
-        cgraph->regQp(this->left);
-      } else { // Even rank
-        this->left = new RingQp(ctx, func, comm, leftRank, tag1, incoming);
-        cgraph->regQp(this->left);
-        this->right = new RingQp(ctx, func, comm, rightRank, tag2, incoming);
-        cgraph->regQp(this->right);
-      }
-      right->set_pair(left);
-      left->set_pair(right);
-    }
-  
-    ~RingPair() {
-      delete (right);
-      delete (left);
-    }
-  
-    RingQp *right;
-    RingQp *left;
-  };
-
   class StepCtx {
   public:
     StepCtx() : outgoing_buf(NULL), umr_iov() {};
@@ -541,11 +445,7 @@ class PcxAllreduceChunkedRing {
 
     ManagementQp *mqp; // mqp stands for "Management Queue Pair"
     LoopbackQp *lqp;   // lqp stands for "Loopback Queue Pair"
-    RingPair *pqp;     // pqp stands for "Pair Queue Pair"
-
-    // Holds the number of iterations that will be executed during the All-Reduce
-    // algorithm
-    unsigned iters_cnt;
+    RingQps *ring_qps; // pair of QP
 
     // Each element in the array holds all the data structure that the algorithm
     // operates on during each step of the algorithm.
