@@ -241,6 +241,7 @@ public:
   };
 
 private:
+  // The amount of wqebb (single wqebb is 64 Bytes (look in the PRM))
   uint32_t write_cnt;
   uint32_t cmpl_cnt;
 

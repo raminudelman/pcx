@@ -166,6 +166,9 @@ qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
     return;
   }
 
+  // Find the minimal number of wqes that is larger than num_of_wqes
+  // that devides the SQ size without a reminder.
+  // Note: wqe_cnt is always of power of 2.
   while (rounded_num_of_wqes && this->qp->sq.wqe_cnt % rounded_num_of_wqes) {
     ++rounded_num_of_wqes;
   }
@@ -370,7 +373,9 @@ void qp_ctx::reduce_write(NetMem *local, RefMem &remote, uint16_t num_vectors,
 void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
   struct mlx5_wqe_coredirect_seg *wseg; // 1
-  const uint8_t ds = 2;
+  int ctrl_seg_size_in_bytes = 16;
+  int wait_seg_size_in_bytes = 16;
+  const uint8_t ds = (ctrl_seg_size_in_bytes + wait_seg_size_in_bytes) / 16 ; // WQE size in octaword size (16-Byte)
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
       (struct mlx5_wqe_ctrl_seg *)((char *)qp->sq.buf +
