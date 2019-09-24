@@ -27,10 +27,28 @@ enum cd_statuses {
   PCOLL_ERROR = 1 
 };
 
+PCX_ERROR(QPCreateFailed);
+PCX_ERROR(QPInitFailed);
+PCX_ERROR(QpFailedRTR);
+PCX_ERROR(QpFailedRTS);
+PCX_ERROR(CQCreateFailed);
+PCX_ERROR(CQModifyFailed);
+PCX_ERROR(MissingContext);
+
 typedef std::function<void()> LambdaInstruction;
 typedef std::queue<LambdaInstruction> InsQueue;
 
-class PcxQp {
+class GraphObj {
+public:
+  // Holds a unique number for the Obj.
+  // Every Obj within the CommmGraph has a unique number 
+  // which is given during CommmGraph::reqQp.
+  uint16_t id;
+  virtual void init() = 0;
+  virtual void fin() = 0;
+};
+
+class PcxQp : public GraphObj {
 public:
   PcxQp(VerbCtx *ctx);
   virtual ~PcxQp() = 0;
@@ -53,13 +71,9 @@ public:
 
   int recv_enables;
 
-  // Holds a unique number for the QP.
-  // Every QP within the CommmGraph has a unique number 
-  // which is given during CommmGraph::reqQp.
-  uint16_t id;
-
   qp_ctx *qp;
 
+  VerbCtx *ctx;
 protected:
 
   struct ibv_qp *ibqp;
@@ -71,7 +85,7 @@ protected:
   // is used only for the Receive Queue of the QP.
   struct ibv_cq *ibcq;
 
-  VerbCtx *ctx;
+
 
   struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe, 
                               void *cq_context = NULL,
@@ -176,80 +190,4 @@ public:
 protected:
   RemoteMem *remote;
   NetMem *incoming;
-};
-
-class RingQp : public TransportQp { // TODO: Move to new file pcx_ring.h
-public:
-  RingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm, uint32_t peer,
-         uint32_t tag, PipeMem *incomingBuffer);
-  ~RingQp();
-
-  void init();
-  LambdaInstruction write(NetMem *local, size_t pos = 0, bool require_cmpl = false);
-  LambdaInstruction reduce_write(NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
-                    uint8_t type, bool require_cmpl);
-
-protected:
-  PipeMem *remote;
-  PipeMem *incoming;
-};
-
-
-typedef std::vector<PcxQp *> GraphQps; // TODO: Cannot change to vector of TransportQps because ManagementQp is also registered... need to seprate it from the list?
-typedef GraphQps::iterator GraphQpsIt;
-
-// Communication Graph class.
-// Holds all the communication graph of a collective operation.
-// The Communication Graph holds a management QP which acts as a 
-// management unit which in charge of executing all the operation that
-// where defined in advance. 
-class CommGraph {
-public:
-  CommGraph();
-  ~CommGraph();
-
-  void enqueue(LambdaInstruction &ins); // TODO: Move to private section of the class
-
-  // Register a QP to the graph. 
-  // Each graph should have a single Management QP and single/multiple Transport QPs
-  void regQp(ManagementQp *qp);
-  void regQp(LoopbackQp *qp);
-  void regQp(DoublingQp *qp);
-  void regQp(RingQp *qp);
-
-  void wait(PcxQp *slave_qp, bool wait_scq = false);
-
-  void reduce_write(RingQp *slave_qp, NetMem *local, size_t pos, uint16_t num_vectors, uint8_t op,
-                    uint8_t type, bool require_cmpl);
-  void reduce_write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type, bool require_cmpl);
-  void reduce_write(LoopbackQp *slave_qp, UmrMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type, bool require_cmpl);
-  void reduce_write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, uint16_t num_vectors,
-                    uint8_t op, uint8_t type, bool require_cmpl);
-
-  void write(RingQp *slave_qp, NetMem *local, size_t pos, bool require_cmpl);
-  void write(LoopbackQp *slave_qp, NetMem *local, RefMem *remote, bool require_cmpl);
-  void write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl);
-  void write(DoublingQp *slave_qp, NetMem *local, NetMem *remote, bool require_cmpl);
-  void write(DoublingQp *slave_qp, NetMem *local, bool require_cmpl);
-
-  void send_credit(TransportQp *slave_qp);
-
-  void db();
-
-  void finish();
-
-  // mqp stands for "Management Queue Pair"
-  ManagementQp *mqp; 
-
-  // Instructions queue
-  InsQueue iq;
-  
-  GraphQps qps;
-  uint16_t qp_cnt; // TODO: use qps.size() instead and remote this member.
-
-private:
-  void regQpCommon(PcxQp *qp);
-
 };

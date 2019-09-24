@@ -1,9 +1,10 @@
 // TODO: Add license
 #pragma once
 
-#include "third-party/pcx/pcx_mem.h" // TODO: Fix path
-#include "third-party/pcx/qps.h" // TODO: Fix path
-#include "third-party/pcx/verbs_ctx.h" // TODO: Fix path
+#include "pcx_mem.h"
+#include "qps.h"
+#include "verbs_ctx.h"
+#include "comm_graph.h"
 
 // TODO: copy from Gloo/algorithm.h all the code regarding ReductionType etc.
 
