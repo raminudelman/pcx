@@ -216,8 +216,6 @@ class PcxAllreduceChunkedRing {
 
     int credits = pipeline_;
 
-    sess->wait(left, false);
-
     PCX_RING_PRINT("Performed first reduce in the Reduce-Scatter stage \n");
 
     // The first reduce (first step in the ring algorithm)
