@@ -1,6 +1,6 @@
 #pragma once
 
-#include "qps.h"
+#include "pcx_qps.h"
 #include "pcx_ring_qp.h"
 
 // Communication Graph class.

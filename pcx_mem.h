@@ -31,7 +31,7 @@
  */
 #pragma once
 
-#include "verbs_ctx.h"
+#include "pcx_verbs_ctx.h"
 
 // Used creating UMR (User Memory Region) and DM (Device Memory).
 // Note: Search for "ibv_exp" in the pcx_mem.cc file.

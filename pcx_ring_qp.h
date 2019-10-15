@@ -1,5 +1,5 @@
 #pragma once
-#include "qps.h"
+#include "pcx_qps.h"
 
 class RingQp : public TransportQp {
   public:

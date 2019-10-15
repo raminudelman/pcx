@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "allreduce_alg_common.h"
+#include "pcx_allreduce_alg_common.h"
 
 #ifdef DEBUG
 #define PCX_RING_PRINT(args...)                                                \

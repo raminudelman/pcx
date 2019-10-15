@@ -31,7 +31,7 @@
  */
 #pragma once
 
-#include "udma_barrier.h"
+#include "pcx_udma_barrier.h"
 #include "pcx_mem.h"
 
 extern "C" {

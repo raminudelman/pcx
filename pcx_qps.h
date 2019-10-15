@@ -1,10 +1,10 @@
 // TODO: Add license
 #pragma once
 
-#include "dv_mgr.h"
+#include "pcx_dv_mgr.h"
 
 // Used because every QP has a pointer to a verbs context
-#include "verbs_ctx.h"
+#include "pcx_verbs_ctx.h"
 
 // Used for creating RC QPs that support CORE-Direct.
 // Note: Search for "ibv_exp" in the pcx_mem.cc file.

@@ -30,7 +30,7 @@
  * SOFTWARE.
  */
 
-#include "dv_mgr.h"
+#include "pcx_dv_mgr.h"
 #include "assert.h"
 
 static inline void mlx5dv_set_remote_data_seg(

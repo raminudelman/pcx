@@ -1,6 +1,6 @@
 
 // TODO: Add license
-#include "qps.h"
+#include "pcx_qps.h"
 
 PcxQp::PcxQp(VerbCtx *ctx)
     : wqe_count(0), cqe_count(0), recv_enables(0), ctx(ctx), qp(NULL),

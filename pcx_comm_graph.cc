@@ -1,4 +1,4 @@
-#include "comm_graph.h"
+#include "pcx_comm_graph.h"
 
 CommGraph::CommGraph() : mqp(NULL), iq() {}
 
