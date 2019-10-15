@@ -41,20 +41,20 @@ static inline void mlx5dv_set_remote_data_seg(struct mlx5_wqe_raddr_seg *seg, //
 }
 
 static void set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op,
-                               uint8_t type, uint8_t chunks,
-                               uint16_t num_vectors) {
+                               uint8_t operand_type, uint8_t chunk_size,
+                               uint16_t num_of_vectors) {
   vseg->calc_operation = htobe32(op << 24);
-  vseg->options = htobe32(type << 24 |
+  vseg->options = htobe32(operand_type << 24 |
 #if __BYTE_ORDER == __LITTLE_ENDIAN
                           1UL << 22 |
 #elif __BYTE_ORDER == __BIG_ENDIAN
 #else
 #error __BYTE_ORDER is neither __LITTLE_ENDIAN nor __BIG_ENDIAN
 #endif
-                          chunks << 16 | num_vectors);
+                          chunk_size << 16 | num_of_vectors);
 }
 
-static inline void cd_set_wait(struct mlx5_wqe_coredirect_seg *seg,
+static inline void cd_set_wait(struct mlx5_wqe_coredirect_seg *seg, // TODO: Rename this method to mlx5dv_set_wait_seg
                                uint32_t index, uint32_t number) {
   seg->index = htonl(index);
   seg->number = htonl(number);
