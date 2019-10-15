@@ -241,13 +241,14 @@ public:
   };
 
 private:
-  // The amount of wqebb (single wqebb is 64 Bytes (look in the PRM))
+  // The amount of WQEBBs (single WQEBB (WQE Basic Block) is 64 Bytes
+  // (look in the PRM))
   uint32_t write_cnt;
   uint32_t cmpl_cnt;
 
   // Hold the index of the CQE within the CQ that indicates that the
   // QP has finished a single collective operation.
-  // The uses 0 based counting, meaning it starts from 0.
+  // The counter uses "0 based counting", meaning it starts from 0.
   uint32_t poll_cnt;
 
   // QP number

@@ -63,9 +63,11 @@ public:
   void print();
 
   // Holds how many WQEs will be executed during a single collective operation 
+  // This number is in WQEBBs (WQE Basic Block) units. 
+  // Note: WQEBB size is 64 Bytes.
   int wqe_count;
 
-  // The number of WQEs that are expected to be executed 
+  // The number of WQEs that are expected to be compeleted 
   // during a single collective operation
   int cqe_count; // Required for all QP types (both transport and non transport)
 

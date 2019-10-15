@@ -277,6 +277,9 @@ void qp_ctx::db() {
 void qp_ctx::send_credit() {
   struct mlx5_wqe_ctrl_seg *ctrl;
   struct mlx5_wqe_data_seg *dseg;
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = 1;
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
@@ -293,6 +296,9 @@ void qp_ctx::write(const struct ibv_sge *local,
   struct mlx5_wqe_ctrl_seg *ctrl;
   struct mlx5_wqe_raddr_seg *rseg;
   struct mlx5_wqe_data_seg *dseg;
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = 3;
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
@@ -333,7 +339,10 @@ void qp_ctx::reduce_write(const struct ibv_sge *local,
   struct mlx5_wqe_raddr_seg *rseg;      // 1
   struct mlx5_wqe_vectorcalc_seg *vseg; // 2
   struct mlx5_wqe_data_seg *dseg;       // 1
-  const uint8_t ds = 5;
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
+  const uint8_t ds = 5; // 1 + 1 + 2 + 1
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
       (struct mlx5_wqe_ctrl_seg *)((char *)qp->sq.buf +
@@ -375,6 +384,9 @@ void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
   struct mlx5_wqe_coredirect_seg *wseg; // 1
   int ctrl_seg_size_in_bytes = 16;
   int wait_seg_size_in_bytes = 16;
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = (ctrl_seg_size_in_bytes + wait_seg_size_in_bytes) / 16 ; // WQE size in octaword size (16-Byte)
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
@@ -390,6 +402,9 @@ void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
 void qp_ctx::cd_recv_enable(qp_ctx *slave_qp) {
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
   struct mlx5_wqe_coredirect_seg *wseg; // 1
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = 2;
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
@@ -412,6 +427,9 @@ void qp_ctx::cd_wait(qp_ctx *slave_qp, bool wait_scq) {
 
   struct mlx5_wqe_ctrl_seg *ctrl;       // 1
   struct mlx5_wqe_coredirect_seg *wseg; // 1
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = 2;
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =
@@ -429,6 +447,9 @@ void qp_ctx::cd_wait(qp_ctx *slave_qp, bool wait_scq) {
 
 void qp_ctx::nop(size_t num_pad) {
   struct mlx5_wqe_ctrl_seg *ctrl; // 1
+  // DS holds the WQE size in octowords (16-byte units). 
+  // DS accounts for all the segments in the WQE as summarized in WQE 
+  // construction
   const uint8_t ds = (num_pad * (qp->sq.stride / 16));
   int wqe_count = qp->sq.wqe_cnt;
   ctrl =

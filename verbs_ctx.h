@@ -182,6 +182,8 @@ typedef struct rd_peer_info {
   peer_addr_t addr;
 } rd_peer_info_t;
 
+// These two functions are needed here because during creation of the verbs
+// context, a "UMR QP" is created within the context
 int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr);
 int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp);
 

@@ -170,7 +170,7 @@ struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
     mem_reg[buf_idx].mr = iov[buf_idx]->getMr();
   }
 
-  /* Create the UMR work request */
+  /* Create the UMR WR (work request) */
   struct ibv_exp_send_wr wr, *bad_wr;
   memset(&wr, 0, sizeof(wr));
   wr.exp_opcode = IBV_EXP_WR_UMR_FILL;
@@ -185,7 +185,7 @@ struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
     wr.exp_send_flags |= IBV_EXP_SEND_INLINE;
   }
 
-  /* Post WR and wait for it to complete */
+  /* Post the UMR WR and wait for it to complete */
   if (int res = ibv_exp_post_send(ctx->umr_qp, &wr, &bad_wr)) {
     RES_ERR(UMR_PostFailed, res);
   }
