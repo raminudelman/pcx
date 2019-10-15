@@ -114,7 +114,6 @@ RefMem::~RefMem() {}
 
 
 UmrMem::UmrMem(std::vector<NetMem *> &iov, VerbCtx *ctx) {
-  // return;
   this->mr = register_umr(iov, ctx);
   this->sge.lkey = mr->lkey;
   this->sge.length = iov[0]->sg()->length;
