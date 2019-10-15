@@ -45,110 +45,115 @@
 #include <vector>
 
 #define IB_ACCESS_FLAGS                                                        \
-  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
+    (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
 
 enum PCX_MEMORY_TYPE {
-  PCX_MEMORY_TYPE_HOST,
-  PCX_MEMORY_TYPE_MEMIC,
-  PCX_MEMORY_TYPE_REMOTE,
-  PCX_MEMORY_TYPE_NIM,
-  PCX_MEMORY_TYPE_USER,
+    PCX_MEMORY_TYPE_HOST,
+    PCX_MEMORY_TYPE_MEMIC,
+    PCX_MEMORY_TYPE_REMOTE,
+    PCX_MEMORY_TYPE_NIM,
+    PCX_MEMORY_TYPE_USER,
 };
 
 // Network Memory
 class NetMem { // TODO: Change class name to "PcxMem" or "PcxBaseMem"
-public:
-  NetMem(){};
-  virtual ~NetMem() = 0;
-  struct ibv_sge *sg() {
-    return &sge;
-  };
-  struct ibv_mr *getMr() {
-    return mr;
-  };
+  public:
+    NetMem() {};
+    virtual ~NetMem() = 0;
+    struct ibv_sge *sg() {
+        return &sge;
+    };
+    struct ibv_mr *getMr() {
+        return mr;
+    };
 
-protected:
-  // Scatter-Gather Element
-  struct ibv_sge sge;
+  protected:
+    // Scatter-Gather Element
+    struct ibv_sge sge;
 
-  // Memory Region 
-  struct ibv_mr *mr; 
+    // Memory Region
+    struct ibv_mr *mr;
 };
 
 // Host Memory
 class HostMem : public NetMem {
-public:
-  HostMem(size_t length, VerbCtx *ctx);
-  ~HostMem();
+  public:
+    HostMem(size_t length, VerbCtx *ctx);
+    ~HostMem();
 
-private:
-  void *buf;
+  private:
+    void *buf;
 };
 
 class Memic : public NetMem {
-  /*
-   * This is ConnectX-5 device memory mapped to the host memory.
-   * Using this memory is about 200ns faster than using host memory.
-   * So it should reduce latency in around 0.2us per step.
-   */
-public:
-  Memic(size_t length, VerbCtx *ctx);
-  ~Memic();
+    /*
+     * This is ConnectX-5 device memory mapped to the host memory.
+     * Using this memory is about 200ns faster than using host memory.
+     * So it should reduce latency in around 0.2us per step.
+     */
+  public:
+    Memic(size_t length, VerbCtx *ctx);
+    ~Memic();
 
-private:
-  struct ibv_exp_dm *dm; // TODO: Remove the dependency of verbs_exp ("Experimental Verbs")
+  private:
+    struct ibv_exp_dm *dm; // TODO: Remove the dependency of verbs_exp
+                           // ("Experimental Verbs")
 };
 
 class UsrMem : public NetMem {
-public:
-  UsrMem(void *buf, size_t length, VerbCtx *ctx);
-  ~UsrMem();
+  public:
+    UsrMem(void *buf, size_t length, VerbCtx *ctx);
+    ~UsrMem();
 };
 
 class RefMem : public NetMem {
-public:
-  RefMem(NetMem *mem, uint64_t byte_offset, uint32_t length);
-  RefMem(const RefMem &srcRef) {
-    this->sge = srcRef.sge;
-    this->mr = srcRef.mr;
-  }
-  ~RefMem();
+  public:
+    RefMem(NetMem *mem, uint64_t byte_offset, uint32_t length);
+    RefMem(const RefMem &srcRef) {
+        this->sge = srcRef.sge;
+        this->mr = srcRef.mr;
+    }
+    ~RefMem();
 };
 
 class UmrMem : public NetMem {
-public:
-  UmrMem(std::vector<NetMem *> &mem_reg, VerbCtx *ctx);
-  ~UmrMem();
-private:
-  struct ibv_mr *register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx);
+  public:
+    UmrMem(std::vector<NetMem *> &mem_reg, VerbCtx *ctx);
+    ~UmrMem();
+
+  private:
+    struct ibv_mr *register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx);
 };
 
 class RemoteMem : public NetMem {
-public:
-  RemoteMem(uint64_t addr, uint32_t rkey);
-  ~RemoteMem();
+  public:
+    RemoteMem(uint64_t addr, uint32_t rkey);
+    ~RemoteMem();
 };
 
 class PipeMem {
-public:
-  PipeMem(size_t length_, size_t depth_, VerbCtx *ctx,
-          int mem_type_ = PCX_MEMORY_TYPE_HOST);
-  PipeMem(size_t length_, size_t depth_, RemoteMem *remote);
-  PipeMem(void *buf, size_t length_, size_t depth_, VerbCtx *ctx);
-  ~PipeMem();
-  RefMem operator[](size_t idx);
+  public:
+    PipeMem(size_t length_, size_t depth_, VerbCtx *ctx,
+            int mem_type_ = PCX_MEMORY_TYPE_HOST);
+    PipeMem(size_t length_, size_t depth_, RemoteMem *remote);
+    PipeMem(void *buf, size_t length_, size_t depth_, VerbCtx *ctx);
+    ~PipeMem();
+    RefMem operator[](size_t idx);
 
-  RefMem next();
-  void print();
+    RefMem next();
+    void print();
 
-  size_t getLength() { return length; };
-  size_t getDepth() { return depth; };
+    size_t getLength() {
+        return length;
+    };
+    size_t getDepth() {
+        return depth;
+    };
 
-private:
-  NetMem *mem;
-  size_t length;
-  size_t depth;
-  int mem_type;
-  size_t cur;
+  private:
+    NetMem *mem;
+    size_t length;
+    size_t depth;
+    int mem_type;
+    size_t cur;
 };
-

@@ -16,5 +16,3 @@ typedef Iov::iterator Iovit;
 
 void freeIov(Iov &iov);
 void freeIop(Iop &iop);
-
-
