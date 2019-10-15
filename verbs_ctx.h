@@ -65,9 +65,6 @@ extern "C" {
 
 #define GID_INDEX 3
 
-#define IB_ACCESS_FLAGS                                                        \
-  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
-
 #define PCX_ERROR(exp)                                                         \
   class PCX_ERR_##exp : public std::exception {                                \
     const char *what() const throw() { return #exp; };                         \

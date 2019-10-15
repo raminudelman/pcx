@@ -44,6 +44,9 @@
 #include <unistd.h>
 #include <vector>
 
+#define IB_ACCESS_FLAGS                                                        \
+  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
+
 enum PCX_MEMORY_TYPE {
   PCX_MEMORY_TYPE_HOST,
   PCX_MEMORY_TYPE_MEMIC,
