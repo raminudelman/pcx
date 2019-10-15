@@ -85,7 +85,7 @@ enum mlx5dv_vector_calc_chunks { // TODO: Check if used somewhere and if not whe
   MLX5DV_VECTOR_CALC_CHUNK_NUMBER
 };
 
-struct mlx5_wqe_coredirect_seg {
+struct mlx5_wqe_coredirect_seg { // TODO: This should be named mlx5_wait_wqe_coredirect_seg?
   uint64_t rsvd;
   uint32_t index;
   uint32_t number;

@@ -93,7 +93,7 @@ public:
   ~Memic();
 
 private:
-  struct ibv_exp_dm *dm;
+  struct ibv_exp_dm *dm; // TODO: Remove the dependency of verbs_exp ("Experimental Verbs")
 };
 
 class UsrMem : public NetMem {

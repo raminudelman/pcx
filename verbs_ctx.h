@@ -37,7 +37,7 @@ extern "C" {
 #include <infiniband/verbs.h>
 
 #include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
-#include <infiniband/mlx5dv.h>
+#include <infiniband/mlx5dv.h> // TODO: Check if this should be really included here. This should be included here only if verbs_ctx.* is actually using mlx5dv APIs!
 }
 
 // verbs_exp.h is included in order to:
