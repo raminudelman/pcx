@@ -2,6 +2,7 @@
 
 #include "pcx_qps.h"
 #include "pcx_ring_qp.h"
+#include "pcx_king_qp.h"
 
 // Communication Graph class.
 // Holds all the communication graph of a collective operation.

@@ -1,3 +1,4 @@
+// TODO: Add liscense
 #pragma once
 #include "pcx_qps.h"
 
@@ -11,7 +12,9 @@ class RingQp : public TransportQp {
     rd_peer_info_t get_local_info();
     void set_remote_info(rd_peer_info_t remote_info);
 
-    void init();
+    // Must provide some implementation to pure virtual function.
+    void init() {}
+
     LambdaInstruction write(NetMem *local, size_t pos = 0,
                             bool require_cmpl = false);
     LambdaInstruction reduce_write(NetMem *local, size_t pos,

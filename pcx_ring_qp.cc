@@ -1,3 +1,4 @@
+// TODO: Add liscense
 #include "pcx_ring_qp.h"
 
 RingQp::RingQp(VerbCtx *ctx, PipeMem *incomingBuffer)
@@ -53,22 +54,6 @@ void RingQp::set_remote_info(rd_peer_info_t remote_info) {
     remote =
         new PipeMem(incoming->getLength(), incoming->getDepth(), &tmp_remote);
     rc_qp_connect(&remote_info.addr, ibqp);
-}
-
-void RingQp::init() {
-    rd_peer_info_t local_info, remote_info;
-    init_rc_qp();
-    local_info = get_local_info();
-    ctx->mtx.unlock();
-    exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
-    ctx->mtx.lock();
-    set_remote_info(remote_info);
-    // barrier
-    int ack;
-    ctx->mtx.unlock();
-    barrier((void *)&ack, (void *)&ack, sizeof(int));
-    ctx->mtx.lock();
-    init_qp_ctx();
 }
 
 LambdaInstruction RingQp::write(NetMem *local, size_t pos, bool require_cmpl) {

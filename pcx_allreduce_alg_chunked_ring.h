@@ -183,7 +183,7 @@ template <typename T> class PcxAllreduceChunkedRing {
         // size peicesize.
         mem_.tmpMem = new PipeMem(pieceSize_, pipeline_, ibv_ctx_, temp_type);
 
-        // Create a loopback QP - used for DMA inside the container itself.
+        // Create a loopback QP - used for DMA inside the rank itself.
         // Instead of using MemCpy and CudaMemCopy, the memory is copied via the
         // NIC.
         rd_.lqp = new LoopbackQp(ibv_ctx_);
