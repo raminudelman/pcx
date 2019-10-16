@@ -40,7 +40,6 @@ void CommGraph::regQp(RingQps *qps) {
     this->enqueue(lambda1);
     this->enqueue(lambda2);
     regQpCommon(qps);
-    QP_PRINT("Registered RingQp with ID='%d' \n", qp->id);
 }
 
 void CommGraph::regQpCommon(GraphObj *obj) {
