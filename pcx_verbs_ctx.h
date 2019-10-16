@@ -93,6 +93,12 @@ extern "C" {
 #define PRINTF(f_, ...)
 #endif
 
+// CORE-Direct (CD) status
+enum coredirect_statuses {
+    PCOLL_SUCCESS = 0,
+    PCOLL_ERROR = 1
+};
+
 // Used in pcx_mem.cc
 PCX_ERROR(NotEnoughKLMs)
 PCX_ERROR(NoUMRKey)
@@ -107,7 +113,7 @@ PCX_ERROR(AllocateMemoryFailed)
 PCX_ERROR(RegMrFailed)
 PCX_ERROR(ExpRegMrFailed)
 
-// Used in verbs_ctx.cc
+// Used in pcx_verbs_ctx.cc
 PCX_ERROR(CouldNotCreateQP)
 PCX_ERROR(CouldNotDestroyQP)
 PCX_ERROR(CouldNotCreateUmrQP)
@@ -125,6 +131,14 @@ PCX_ERROR(CouldNotQueryDevice)
 PCX_ERROR(CouldNotModifyQpToRTR)
 PCX_ERROR(CouldNotModifyQpToRTS)
 PCX_ERROR(CouldNotRemoveVerbsInstance)
+PCX_ERROR(QpFailedRTR)
+PCX_ERROR(QpFailedRTS)
+PCX_ERROR(QPInitFailed)
+PCX_ERROR(CQModifyFailed)
+
+// Used in: pcx_qps.cc, pcx_verbs_ctx.cc
+PCX_ERROR(CQCreateFailed)
+
 
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
 #define CX_SIZE 16 // TODO: Check if this value is a proper value.
@@ -158,21 +172,32 @@ class VerbCtx {
     // These QPs are used for registering UMR memory
     struct ibv_cq *umr_cq; // TODO: Can this be defined as local variable in
                            // VerbCtx() c'tor?
-    struct ibv_qp *umr_qp; // TODO: Can this be defined as local variable in
-                           // VerbCtx() c'tor?
+    struct ibv_qp *umr_qp;
 
     struct ibv_comp_channel *channel; // TODO: This is unused. Can it be
                                       // removed?
 
     struct ibv_exp_device_attr attrs; // Type defined in verbs_exp.h // TODO:
                                       // Consider removing this member as it
-                                      // used only once for setting the maxMemic
-                                      // member.
+                                      // used only for setting the maxMemic
+                                      // member and during UMR registration
     std::mutex mtx;
 
     // Holds the amount of DM (Device Memory) (in Bytes?) that the device has.
     // If the device does not suppport DM, this member will be set to 0.
     size_t maxMemic;
+
+    struct ibv_qp *create_coredirect_master_qp(struct ibv_cq *cq, uint16_t send_wq_size); 
+
+    struct ibv_qp *create_coredirect_slave_rc_qp(struct ibv_cq *cq,
+                                                 uint16_t send_wq_size, uint16_t recv_rq_size,
+                                                 struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
+                                                 int slaveSend = 1);                               
+    struct ibv_cq *create_coredirect_cq(int cqe,
+                                        void *cq_context = NULL,
+                                        struct ibv_comp_channel *channel = NULL,
+                                        int comp_vector = 0);
+
 };
 
 typedef struct peer_addr { // TODO: Change struct name to somthing more

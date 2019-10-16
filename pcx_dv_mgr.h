@@ -73,8 +73,7 @@ enum mlx5dv_vector_calc_data_type {
     MLX5DV_VECTOR_CALC_DATA_TYPE_NUMBER
 };
 
-enum mlx5dv_vector_calc_chunks { // TODO: Check if used somewhere and if not
-                                 // where did it come from?
+enum mlx5dv_vector_calc_chunks { // TODO: No one uses it in PCX but maybe this should be added to mlx5dv as part of Vector-CALC feature.
     MLX5DV_VECTOR_CALC_CHUNK_64 = 0,
     MLX5DV_VECTOR_CALC_CHUNK_128,
     MLX5DV_VECTOR_CALC_CHUNK_256,
@@ -85,8 +84,7 @@ enum mlx5dv_vector_calc_chunks { // TODO: Check if used somewhere and if not
     MLX5DV_VECTOR_CALC_CHUNK_8192,
     MLX5DV_VECTOR_CALC_CHUNK_NUMBER };
 
-struct mlx5_wqe_coredirect_seg { // TODO: This should be named
-                                 // mlx5_wait_wqe_coredirect_seg?
+struct mlx5_wqe_coredirect_seg {
     uint64_t rsvd;
     uint32_t index;
     uint32_t number;
@@ -104,37 +102,6 @@ struct mlx5_wqe_vectorcalc_seg {
 struct mlx5_db_seg {
     __be32 opmod_idx_opcode;
     __be32 qpn_ds;
-};
-
-struct cqe64 { // TODO: This struct is very similar to the struct mlx5_cqe64
-               // defined in mlx5dv.h. Why cant we take the struct as is from
-               // mlx5dv.h?
-    uint8_t rsvd0[2];
-    __be16 wqe_id;
-    uint8_t rsvd4[13];
-    uint8_t ml_path;
-    uint8_t rsvd20[4];
-    __be16 slid;
-    __be32 flags_rqpn;
-    uint8_t hds_ip_ext;
-    uint8_t l4_hdr_type_etc;
-    __be16 vlan_info;
-    /* TMH is scattered to CQE upon match */
-    __be32 srqn_uidx;
-    __be32 imm_inValpkey;
-    uint8_t app;
-    uint8_t app_op;
-    __be16 app_info;
-    __be32 byte_cnt;
-    __be32 rsvd34;
-    uint8_t hw_syn;
-    uint8_t rsvd38;
-    uint8_t vendor_syn;
-    uint8_t syn;
-    __be32 sop_drop_qpn;
-    __be16 wqe_counter;
-    uint8_t signature;
-    volatile uint8_t op_own;
 };
 
 class ValRearmTasks {
@@ -163,16 +130,6 @@ class RearmTasks {
 
   private:
     UpdateMap map;
-};
-
-class cq_ctx {
-  public:
-    cq_ctx(struct ibv_cq *cq, size_t num_of_cqes);
-    ~cq_ctx();
-    uint32_t cmpl_cnt;
-
-    struct mlx5dv_cq *cq;
-    size_t cqes;
 };
 
 class qp_ctx {
@@ -244,6 +201,16 @@ class qp_ctx {
     qp_ctx *pair; // TODO: Rename this to "peer"
 
     // Completion Queue for Send Queue
+    class cq_ctx {
+      public:
+        cq_ctx(struct ibv_cq *cq, size_t num_of_cqes);
+        ~cq_ctx();
+        uint32_t cmpl_cnt;
+
+        struct mlx5dv_cq *cq;
+        size_t cqes;
+    };
+
     cq_ctx *scq;
 
     uint32_t get_poll_cnt() {
@@ -295,8 +262,7 @@ class qp_ctx {
     // After each collective operation is done, this pointer is updated to point
     // to the next expected CQE that one should wait for, when waiting for a
     // the next collective operation to be finished.
-    volatile struct cqe64 *cur_cqe; // TODO: Why not use the struct mlx5_cqe64
-                                    // which is provided in the mlx5dv.h?
+    volatile struct mlx5_cqe64 *cur_cqe;
 
     void print_buffer(volatile void *buf, int count);
 };

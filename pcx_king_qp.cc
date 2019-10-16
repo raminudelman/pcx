@@ -20,17 +20,17 @@ DoublingQp::~DoublingQp() {
 
 void DoublingQp::init() {
 
-    ibcq = cd_create_cq(ctx, cqe_count);
+    ibcq = ctx_->create_coredirect_cq(cqe_count);
     if (!ibcq) {
         PERR(CQCreateFailed);
     }
 
-    ibscq = cd_create_cq(ctx, scqe_count);
+    ibscq = ctx_->create_coredirect_cq(scqe_count);
     if (!ibscq) {
         PERR(CQCreateFailed);
     }
 
-    ibqp = rc_qp_create(ibcq, ctx, wqe_count, cqe_count, ibscq);
+    ibqp = ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
 
     if (!ibqp) {
         PERR(QPCreateFailed);
@@ -42,9 +42,9 @@ void DoublingQp::init() {
     local_info.rkey = incoming->getMr()->rkey;
     rc_qp_get_addr(ibqp, &local_info.addr);
 
-    ctx->mtx.unlock();
+    ctx_->mtx.unlock();
     exchange((void *)&local_info, (void *)&remote_info, sizeof(local_info));
-    ctx->mtx.lock();
+    ctx_->mtx.lock();
 
     /*
       fprintf(stderr,"sent: buf = %lu, rkey = %u, qpn = %lu, lid = %u , gid =
@@ -66,9 +66,9 @@ void DoublingQp::init() {
 
     // barrier
     int ack;
-    ctx->mtx.unlock();
+    ctx_->mtx.unlock();
     barrier((void *)&ack, (void *)&ack, sizeof(int));
-    ctx->mtx.lock();
+    ctx_->mtx.lock();
 
     qp = new qp_ctx(ibqp, ibcq, wqe_count, cqe_count, ibscq, scqe_count);
 

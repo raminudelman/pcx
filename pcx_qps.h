@@ -1,14 +1,11 @@
 // TODO: Add license
 #pragma once
 
+// Used because every QP has a qp_ctx member
 #include "pcx_dv_mgr.h"
 
 // Used because every QP has a pointer to a verbs context
 #include "pcx_verbs_ctx.h"
-
-// Used for creating RC QPs that support CORE-Direct.
-// Note: Search for "ibv_exp" in the pcx_mem.cc file.
-#include <infiniband/verbs_exp.h>
 
 #include <functional>
 #include <queue>
@@ -23,18 +20,7 @@
 #define QP_PRINT(args...)
 #endif
 
-// CORE-Direct (CD) status
-enum cd_statuses {
-    PCOLL_SUCCESS = 0,
-    PCOLL_ERROR = 1
-};
-
 PCX_ERROR(QPCreateFailed);
-PCX_ERROR(QPInitFailed);
-PCX_ERROR(QpFailedRTR);
-PCX_ERROR(QpFailedRTS);
-PCX_ERROR(CQCreateFailed);
-PCX_ERROR(CQModifyFailed);
 PCX_ERROR(MissingContext);
 
 typedef std::function<void()> LambdaInstruction;
@@ -78,7 +64,7 @@ class PcxQp : public GraphObj {
 
     qp_ctx *qp;
 
-    VerbCtx *ctx;
+    VerbCtx *ctx_;
 
   protected:
     struct ibv_qp *ibqp;
@@ -89,11 +75,6 @@ class PcxQp : public GraphObj {
     // Queue of the QP. In case a Send Completion Queue, this Completion Queue
     // is used only for the Receive Queue of the QP.
     struct ibv_cq *ibcq;
-
-    struct ibv_cq *cd_create_cq(VerbCtx *verb_ctx, int cqe,
-                                void *cq_context = NULL,
-                                struct ibv_comp_channel *channel = NULL,
-                                int comp_vector = 0);
 };
 
 typedef std::function<void(volatile void *, volatile void *, size_t)>
@@ -126,11 +107,6 @@ class TransportQp : public PcxQp {
 
     // Completion Queue for Send Queue.
     struct ibv_cq *ibscq;
-
-    struct ibv_qp *rc_qp_create(struct ibv_cq *cq, VerbCtx *verb_ctx,
-                                uint16_t send_wq_size, uint16_t recv_rq_size,
-                                struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
-                                int slaveSend = 1);
 };
 
 class ManagementQp : public PcxQp {
@@ -146,10 +122,6 @@ class ManagementQp : public PcxQp {
     LambdaInstruction stack; // TODO: Check if used. If not used remove!
     uint16_t last_qp;        // TODO: Check if used. If not used remove!
     bool has_stack;          // TODO: Check if used. If not used remove!
-
-  private:
-    struct ibv_qp *create_management_qp(struct ibv_cq *cq, VerbCtx *verb_ctx,
-                                        uint16_t send_wq_size);
 };
 
 class LoopbackQp : public TransportQp {

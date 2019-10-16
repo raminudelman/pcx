@@ -3,6 +3,10 @@
 #pragma once
 
 #include "pcx_allreduce_alg_common.h"
+#include "pcx_mem.h"
+#include "pcx_qps.h"
+#include "pcx_verbs_ctx.h"
+#include "pcx_comm_graph.h"
 
 #ifdef DEBUG
 #define PCX_RING_PRINT(args...)                                                \

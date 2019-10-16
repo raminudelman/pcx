@@ -31,6 +31,7 @@
  */
 #pragma once
 
+// Used for registering the UMR
 #include "pcx_verbs_ctx.h"
 
 // Used creating UMR (User Memory Region) and DM (Device Memory).
@@ -109,10 +110,7 @@ class UsrMem : public NetMem {
 class RefMem : public NetMem {
   public:
     RefMem(NetMem *mem, uint64_t byte_offset, uint32_t length);
-    RefMem(const RefMem &srcRef) {
-        this->sge = srcRef.sge;
-        this->mr = srcRef.mr;
-    }
+    RefMem(const RefMem &srcRef);
     ~RefMem();
 };
 

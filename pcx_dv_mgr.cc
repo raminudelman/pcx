@@ -33,18 +33,13 @@
 #include "pcx_dv_mgr.h"
 #include "assert.h"
 
-static inline void mlx5dv_set_remote_data_seg(
-    struct mlx5_wqe_raddr_seg *seg, // TODO: This function should be added to
-                                    // mlx5dv.h !
-    uint64_t addr, uint32_t rkey) {
+static inline void mlx5dv_set_remote_data_seg(struct mlx5_wqe_raddr_seg *seg, uint64_t addr, uint32_t rkey) { // TODO: This function should be added to mlx5dv.h !
     seg->raddr = htobe64(addr);
     seg->rkey = htonl(rkey);
     seg->reserved = 0;
 }
 
-static void set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op,
-                               uint8_t operand_type, uint8_t chunk_size,
-                               uint16_t num_of_vectors) {
+static void mlx5dv_set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op, uint8_t operand_type, uint8_t chunk_size, uint16_t num_of_vectors) { // TODO: This function should be added to mlx5dv.h !
     vseg->calc_operation = htobe32(op << 24);
     vseg->options = htobe32(operand_type << 24 |
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -56,10 +51,7 @@ static void set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op,
                             chunk_size << 16 | num_of_vectors);
 }
 
-static inline void
-cd_set_wait(struct mlx5_wqe_coredirect_seg *seg, // TODO: Rename this method to
-                                                 // mlx5dv_set_wait_seg
-            uint32_t index, uint32_t number) {
+static inline void mlx5dv_set_coredirect_seg(struct mlx5_wqe_coredirect_seg *seg, uint32_t index, uint32_t number) {
     seg->index = htonl(index);
     seg->number = htonl(number);
 }
@@ -111,7 +103,7 @@ void RearmTasks::add(uint32_t *ptr, int inc) {
     map[inc].add(ptr);
 }
 
-cq_ctx::cq_ctx(struct ibv_cq *cq, size_t num_of_cqes) {
+qp_ctx::cq_ctx::cq_ctx(struct ibv_cq *cq, size_t num_of_cqes) {
     this->cmpl_cnt = 0;
     int ret;
     struct mlx5dv_obj dv_obj = {};
@@ -125,7 +117,7 @@ cq_ctx::cq_ctx(struct ibv_cq *cq, size_t num_of_cqes) {
     this->cqes = num_of_cqes;
 }
 
-cq_ctx::~cq_ctx() { free(this->cq); }
+qp_ctx::cq_ctx::~cq_ctx() { free(this->cq); }
 
 qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
                size_t num_of_cqes, struct ibv_cq *scq, size_t num_of_send_cqes)
@@ -191,7 +183,7 @@ qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
         (volatile void *)((volatile char *)this->cq->buf +
                           ((this->poll_cnt) & (this->cq->cqe_cnt - 1)) *
                               this->cq->cqe_size);
-    this->cur_cqe = (volatile struct cqe64 *)tar;
+    this->cur_cqe = (volatile struct mlx5_cqe64 *)tar;
 }
 
 qp_ctx::~qp_ctx() {
@@ -244,13 +236,6 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
                                   // . Consider using that function instead of
                                   // explicitly writing this code again.
 
-#ifdef DEBUG
-        if (opcode == MLX5_CQE_REQ_ERR || opcode == MLX5_CQE_RESP_ERR) {
-            printf("bad CQE: %X\n hw_syn = %X, vendor_syn = %X, syn = %X\n",
-                   cur_cqe->wqe_counter, cur_cqe->hw_syn, cur_cqe->vendor_syn,
-                   cur_cqe->syn);
-        }
-#endif // DEBUG
 
         // Updating the Consumer Index (CI) in CQ Doorbell record as described
         // in
@@ -284,7 +269,7 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
         // Updating the pointer to the location where the next expected CQE
         // will be written by the hardware (in case the hardware will execute
         // another collective operation)
-        this->cur_cqe = (volatile struct cqe64 *)next_expected_cqe_location;
+        this->cur_cqe = (volatile struct mlx5_cqe64 *)next_expected_cqe_location;
         return 1;
     } else {
         return 0;
@@ -293,7 +278,6 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
 
 void qp_ctx::db() {
     exe_cnt += (this->wqes);
-    struct mlx5_db_seg db;
     dbseg.opmod_idx_opcode = htobe32(exe_cnt << 8);
     udma_to_device_barrier();
     qp->dbrec[1] = htobe32(exe_cnt);
@@ -381,7 +365,7 @@ void qp_ctx::reduce_write(const struct ibv_sge *local,
     rseg = (struct mlx5_wqe_raddr_seg *)(ctrl + 1);
     mlx5dv_set_remote_data_seg(rseg, remote->addr, remote->lkey);
     vseg = (struct mlx5_wqe_vectorcalc_seg *)(rseg + 1);
-    set_vectorcalc_seg(vseg, op, type, 4, num_vectors);
+    mlx5dv_set_vectorcalc_seg(vseg, op, type, 4, num_vectors);
     dseg = (struct mlx5_wqe_data_seg *)(vseg + 1);
     mlx5dv_set_data_seg(dseg, local->length, local->lkey, local->addr);
     write_cnt += 2;
@@ -424,7 +408,7 @@ void qp_ctx::cd_send_enable(qp_ctx *slave_qp) {
                                      qp->sq.stride * ((write_cnt) % wqe_count));
     mlx5dv_set_ctrl_seg(ctrl, (write_cnt), 0x17, 0x00, qpn, CE, ds, 0, 0);
     wseg = (struct mlx5_wqe_coredirect_seg *)(ctrl + 1);
-    cd_set_wait(wseg, slave_qp->write_cnt, slave_qp->qpn);
+    mlx5dv_set_coredirect_seg(wseg, slave_qp->write_cnt, slave_qp->qpn);
     this->tasks.add((uint32_t *)&(wseg->index), slave_qp->wqes);
     write_cnt += 1;
 }
@@ -442,7 +426,7 @@ void qp_ctx::cd_recv_enable(qp_ctx *slave_qp) {
                                      qp->sq.stride * ((write_cnt) % wqe_count));
     mlx5dv_set_ctrl_seg(ctrl, (write_cnt), 0x16, 0x00, qpn, CE, ds, 0, 0);
     wseg = (struct mlx5_wqe_coredirect_seg *)(ctrl + 1);
-    cd_set_wait(wseg, 0x6fff, slave_qp->qpn);
+    mlx5dv_set_coredirect_seg(wseg, 0x6fff, slave_qp->qpn);
     this->tasks.add((uint32_t *)&(wseg->index), slave_qp->cqes);
     write_cnt += 1;
 }
@@ -470,7 +454,7 @@ void qp_ctx::cd_wait(qp_ctx *slave_qp, bool wait_scq) {
     uint32_t index =
         ((wait_scq) ? (slave_qp->scq->cmpl_cnt - 1) : (slave_qp->cmpl_cnt - 1));
     uint32_t number = ((wait_scq) ? slave_qp->scq->cq->cqn : slave_qp->cq->cqn);
-    cd_set_wait(wseg, index, number);
+    mlx5dv_set_coredirect_seg(wseg, index, number);
     int cqes_inc = ((wait_scq) ? slave_qp->scq->cqes : slave_qp->cqes);
     this->tasks.add((uint32_t *)&(wseg->index), cqes_inc);
     write_cnt += 1;

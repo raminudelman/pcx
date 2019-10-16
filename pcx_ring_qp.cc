@@ -13,17 +13,17 @@ RingQp::~RingQp() {
 }
 
 void RingQp::init_rc_qp() {
-    ibcq = cd_create_cq(ctx, cqe_count);
+    ibcq = ctx_->create_coredirect_cq(cqe_count);
     if (!ibcq) {
         PERR(CQCreateFailed);
     }
 
-    ibscq = cd_create_cq(ctx, scqe_count);
+    ibscq = ctx_->create_coredirect_cq(scqe_count);
     if (!ibscq) {
         PERR(CQCreateFailed);
     }
 
-    ibqp = rc_qp_create(ibcq, ctx, wqe_count, cqe_count, ibscq);
+    ibqp = ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
     if (!ibqp) {
         PERR(QPCreateFailed);
     }
@@ -115,11 +115,11 @@ void RingQps::init() {
 
     local_info_left = left->get_local_info();
     local_info_right = right->get_local_info();
-    left->ctx->mtx.unlock();
+    left->ctx_->mtx.unlock();
     (*ring_exchange)(comm, &local_info_left, &local_info_right,
                      &remote_info_left, &remote_info_right,
                      sizeof(rd_peer_info_t), leftRank, rightRank, tag1, tag2);
-    left->ctx->mtx.lock();
+    left->ctx_->mtx.lock();
 
     left->set_remote_info(remote_info_left);
     right->set_remote_info(remote_info_right);

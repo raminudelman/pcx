@@ -56,7 +56,6 @@ HostMem::~HostMem() {
 }
 
 Memic::Memic(size_t length, VerbCtx *ctx) {
-    // this->buf = malloc(length);
     struct ibv_exp_alloc_dm_attr dm_attr = { 0 };
     dm_attr.length = length;
     this->dm = ibv_exp_alloc_dm(ctx->context, &dm_attr);
@@ -108,6 +107,11 @@ RefMem::RefMem(NetMem *mem, uint64_t offset, uint32_t length) {
     this->sge.addr += offset;
     this->sge.length = length;
     this->mr = mem->getMr();
+}
+
+RefMem::RefMem(const RefMem &srcRef) {
+    this->sge = srcRef.sge;
+    this->mr = srcRef.mr;
 }
 
 RefMem::~RefMem() {}
@@ -168,7 +172,7 @@ struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
         mem_reg[buf_idx].mr = iov[buf_idx]->getMr();
     }
 
-    /* Create the UMR WR (work request) */
+    // Create the UMR WR (work request)
     struct ibv_exp_send_wr wr, *bad_wr;
     memset(&wr, 0, sizeof(wr));
     wr.exp_opcode = IBV_EXP_WR_UMR_FILL;
@@ -183,12 +187,12 @@ struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
         wr.exp_send_flags |= IBV_EXP_SEND_INLINE;
     }
 
-    /* Post the UMR WR and wait for it to complete */
+    // Post the UMR WR and wait for it to complete
     if (int res = ibv_exp_post_send(ctx->umr_qp, &wr, &bad_wr)) {
         RES_ERR(UMR_PostFailed, res);
     }
     struct ibv_wc wc;
-    for (;;) {
+    for (;;) { // Wait for the UMR WR to complete
         int ret = ibv_poll_cq(ctx->umr_cq, 1, &wc);
         if (ret < 0) {
             PERR(UMR_PollFailed);
@@ -222,6 +226,8 @@ PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
     : length(length_), depth(depth_), mem_type(mem_type_), cur(0) {
 
     switch (mem_type) {
+    
+    // Device memory allocation
     case(PCX_MEMORY_TYPE_MEMIC) : {
         bool success = true;
         if (ctx->maxMemic >= length_) {
@@ -238,13 +244,14 @@ PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
             PRINT("Memic allocated");
             break;
         }
-    }
         PRINT("Memic allocation failed, using host memory...");
-    // carry on to host memory allocation
-    case(PCX_MEMORY_TYPE_HOST) :
+    }
+        
+    // Host memory allocation
+    case(PCX_MEMORY_TYPE_HOST) : {
         mem = new HostMem(length * depth, ctx);
         break;
-
+    }
     default:
         PERR(MemoryNotSupported);
     }
