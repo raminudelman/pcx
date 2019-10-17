@@ -63,9 +63,7 @@ Memic::Memic(size_t length, VerbCtx *ctx) {
     this->sge.lkey = this->mr->lkey;
 }
 
-Memic::~Memic() {
-    ibv_dereg_mr(this->mr);
-}
+Memic::~Memic() { ibv_dereg_mr(this->mr); }
 
 UsrMem::UsrMem(void *buf, size_t length, VerbCtx *ctx) {
     this->sge.addr = (uint64_t)buf;
@@ -96,16 +94,18 @@ RefMem::~RefMem() {}
 
 UmrMem::UmrMem(std::vector<NetMem *> &iov, VerbCtx *ctx) {
 
-    std::vector<PcxMemRegion*> pcx_mem_region_vec;
+    std::vector<PcxMemRegion *> pcx_mem_region_vec;
     for (int buf_idx = 0; buf_idx < iov.size(); ++buf_idx) {
-        struct ibv_mr* mr = iov[buf_idx]->getMr();
-        pcx_mem_region_vec.push_back(new PcxMemRegion(iov[buf_idx]->sg()->addr, iov[buf_idx]->sg()->length, &mr));
+        struct ibv_mr *mr = iov[buf_idx]->getMr();
+        pcx_mem_region_vec.push_back(new PcxMemRegion(
+            iov[buf_idx]->sg()->addr, iov[buf_idx]->sg()->length, &mr));
     }
 
     int ret = ctx->register_umr(pcx_mem_region_vec, &(this->mr));
 
-    for (auto it = pcx_mem_region_vec.begin(); it != pcx_mem_region_vec.end(); ++it) {
-         delete (*it);
+    for (auto it = pcx_mem_region_vec.begin(); it != pcx_mem_region_vec.end();
+         ++it) {
+        delete (*it);
     }
 
     this->sge.lkey = mr->lkey;
@@ -121,20 +121,19 @@ RemoteMem::RemoteMem(uint64_t addr, uint32_t rkey) {
     this->mr = NULL;
 }
 
-RemoteMem::~RemoteMem() {};
+RemoteMem::~RemoteMem(){};
 
 PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
     : length(length_), depth(depth_), mem_type(mem_type_), cur(0) {
 
     switch (mem_type) {
-    
+
     // Device memory allocation
-    case(PCX_MEMORY_TYPE_MEMIC) : {
+    case (PCX_MEMORY_TYPE_MEMIC): {
         bool success = true;
         try {
             mem = new Memic(length * depth, ctx);
-        }
-        catch (const PCX_ERR_AllocateDeviceMemoryFailed &e) {
+        } catch (const PCX_ERR_AllocateDeviceMemoryFailed &e) {
             success = false;
         }
         if (success) {
@@ -143,9 +142,9 @@ PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
         }
         PRINT("Memic allocation failed, falling-back to using host memory...");
     }
-        
+
     // Host memory allocation
-    case(PCX_MEMORY_TYPE_HOST) : {
+    case (PCX_MEMORY_TYPE_HOST): {
         mem = new HostMem(length * depth, ctx);
         break;
     }

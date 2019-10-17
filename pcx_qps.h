@@ -78,7 +78,7 @@ class PcxQp : public GraphObj {
 };
 
 typedef std::function<void(volatile void *, volatile void *, size_t)>
-LambdaExchange;
+    LambdaExchange;
 
 // Each QP which is of type TransportQp is a QP which has a tranport
 // and it responsible for transferring data from one place to another.
@@ -140,5 +140,3 @@ class LoopbackQp : public TransportQp {
                                    uint16_t num_vectors, uint8_t op,
                                    uint8_t type, bool require_cmpl);
 };
-
-

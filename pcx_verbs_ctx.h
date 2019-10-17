@@ -50,11 +50,11 @@ extern "C" {
 #include <infiniband/verbs_exp.h>
 
 #include <inttypes.h>
+#include <mutex>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <mutex>
 #include <vector>
 
 #define VALIDITY_CHECKX
@@ -64,15 +64,13 @@ extern "C" {
 
 #define PCX_ERROR(exp)                                                         \
     class PCX_ERR_##exp : public std::exception {                              \
-        const char *what() const throw() {                                     \
-            return #exp;                                                       \
-        };                                                                     \
+        const char *what() const throw() { return #exp; };                     \
     };
 
 #define PCX_ERROR_RES(exp)                                                     \
     class PCX_ERR_##exp : public std::exception {                              \
       public:                                                                  \
-        PCX_ERR_##exp(int val) : std::exception(), x(val) {};                  \
+        PCX_ERR_##exp(int val) : std::exception(), x(val){};                   \
         const char *what() const throw() {                                     \
             /*sprintf( str, \"%s %d\n\", #exp , x );*/                         \
             return #exp;                                                       \
@@ -98,10 +96,7 @@ extern "C" {
     (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
 
 // CORE-Direct (CD) status
-enum coredirect_statuses {
-    PCOLL_SUCCESS = 0,
-    PCOLL_ERROR = 1
-};
+enum coredirect_statuses { PCOLL_SUCCESS = 0, PCOLL_ERROR = 1 };
 
 // Used in pcx_mem.cc
 PCX_ERROR(NotEnoughKLMs)
@@ -143,7 +138,6 @@ PCX_ERROR(CQModifyFailed)
 // Used in: pcx_qps.cc, pcx_verbs_ctx.cc
 PCX_ERROR(CQCreateFailed)
 
-
 //#define RX_SIZE 16 // TODO: Not used. What was the purpose? Should be removed?
 #define CX_SIZE 16 // TODO: Check if this value is a proper value.
 
@@ -155,8 +149,9 @@ PCX_ERROR(CQCreateFailed)
        // problem to keep increasing it? It will consume more memory... are
        // there any more implications?
 
-// This class is used as a wrapper for the ibv_exp_mem_region struct so PCX will be able
-// to have a level of abstraction when verbs_exp will not be in use anymore.
+// This class is used as a wrapper for the ibv_exp_mem_region struct so PCX will
+// be able to have a level of abstraction when verbs_exp will not be in use
+// anymore.
 class PcxMemRegion {
   public:
     PcxMemRegion(uint64_t base_address, size_t length, ibv_mr **mr) {
@@ -165,31 +160,30 @@ class PcxMemRegion {
         mem_region.mr = *mr;
     };
     ~PcxMemRegion() {}
-    struct ibv_exp_mem_region* GetPcxMemRegion() {
+    struct ibv_exp_mem_region *GetPcxMemRegion() {
         return &mem_region;
     }
+
   private:
     struct ibv_exp_mem_region mem_region;
 };
 
 // This class is used as a wrapper for the ibv_exp_dm struct so PCX will be able
 // to have a level of abstraction when verbs_exp will not be in use anymore.
-class PcxDeviceMemory { // TODO: Consider moving this class into the VerbCtx class
+class PcxDeviceMemory { // TODO: Consider moving this class into the VerbCtx
+                        // class
   public:
     PcxDeviceMemory() : dm_(NULL) {}
-    ~PcxDeviceMemory() {
-        FreeDeviceMemory();
-    }
-    void SetDeviceMemory(struct ibv_exp_dm **dm) {
-        dm_ = *dm;
-    }
-    struct ibv_exp_dm* GetDeviceMemory() {
+    ~PcxDeviceMemory() { FreeDeviceMemory(); }
+    void SetDeviceMemory(struct ibv_exp_dm **dm) { dm_ = *dm; }
+    struct ibv_exp_dm *GetDeviceMemory() {
         return dm_;
     }
     bool IsAllocated() {
         // Return true if dm_ is not NULL
         return !!dm_;
     }
+
   private:
     void FreeDeviceMemory() {
         if (IsAllocated()) {
@@ -229,24 +223,25 @@ class VerbCtx { // TODO: Consider changing the name into PcxVerbsControlService
                                       // removed?
 
     struct ibv_exp_device_attr attrs;
-    
+
     std::mutex mtx;
 
-    int register_dm(size_t length, uint64_t access_permissions, PcxDeviceMemory* pcx_device_memory, struct ibv_mr **mr);
+    int register_dm(size_t length, uint64_t access_permissions,
+                    PcxDeviceMemory *pcx_device_memory, struct ibv_mr **mr);
 
-    int register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **res_mr); // TODO: Add access_permissions like in register_dm
+    int register_umr(std::vector<PcxMemRegion *> &mem_vec,
+                     struct ibv_mr **res_mr); // TODO: Add access_permissions
+                                              // like in register_dm
 
-    struct ibv_qp *create_coredirect_master_qp(struct ibv_cq *cq, uint16_t send_wq_size); 
+    struct ibv_qp *create_coredirect_master_qp(struct ibv_cq *cq,
+                                               uint16_t send_wq_size);
 
-    struct ibv_qp *create_coredirect_slave_rc_qp(struct ibv_cq *cq,
-                                                 uint16_t send_wq_size, uint16_t recv_rq_size,
-                                                 struct ibv_cq *s_cq = NULL, int slaveRecv = 1,
-                                                 int slaveSend = 1);                               
-    struct ibv_cq *create_coredirect_cq(int cqe,
-                                        void *cq_context = NULL,
+    struct ibv_qp *create_coredirect_slave_rc_qp(
+        struct ibv_cq *cq, uint16_t send_wq_size, uint16_t recv_rq_size,
+        struct ibv_cq *s_cq = NULL, int slaveRecv = 1, int slaveSend = 1);
+    struct ibv_cq *create_coredirect_cq(int cqe, void *cq_context = NULL,
                                         struct ibv_comp_channel *channel = NULL,
                                         int comp_vector = 0);
-
 };
 
 typedef struct peer_addr { // TODO: Change struct name to somthing more
@@ -268,5 +263,9 @@ typedef struct rd_peer_info {
 
 // These two functions are needed here because during creation of the verbs
 // context, a "UMR QP" is created within the context
-int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr); // TODO: Consider moving this function to be part of the VerbCtx class
-int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp); // TODO: Consider moving this function to be part of the VerbCtx class
+int rc_qp_get_addr(struct ibv_qp *qp,
+                   peer_addr_t *addr); // TODO: Consider moving this function to
+                                       // be part of the VerbCtx class
+int rc_qp_connect(peer_addr_t *addr,
+                  struct ibv_qp *qp); // TODO: Consider moving this function to
+                                      // be part of the VerbCtx class

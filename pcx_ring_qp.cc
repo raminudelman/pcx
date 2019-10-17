@@ -23,7 +23,8 @@ void RingQp::init_rc_qp() {
         PERR(CQCreateFailed);
     }
 
-    ibqp = ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
+    ibqp =
+        ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
     if (!ibqp) {
         PERR(QPCreateFailed);
     }
@@ -97,8 +98,8 @@ LambdaInstruction RingQp::reduce_write(NetMem *local, size_t pos,
     // uint16_t num_vectors, uint8_t op, uint8_t type, bool require_cmpl). Added
     // this function in case it does not exist
 
-    LambdaInstruction lambda =
-        [this, local, num_vectors, op, type, pos, require_cmpl]() {
+    LambdaInstruction lambda = [this, local, num_vectors, op, type, pos,
+                                require_cmpl]() {
         RefMem ref = ((*this->remote)[pos]);
         this->qp->reduce_write(local, &ref, num_vectors, op, type,
                                require_cmpl);

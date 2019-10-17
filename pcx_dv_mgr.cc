@@ -33,13 +33,19 @@
 #include "pcx_dv_mgr.h"
 #include "assert.h"
 
-static inline void mlx5dv_set_remote_data_seg(struct mlx5_wqe_raddr_seg *seg, uint64_t addr, uint32_t rkey) { // TODO: This function should be added to mlx5dv.h !
+static inline void mlx5dv_set_remote_data_seg(
+    struct mlx5_wqe_raddr_seg *seg, uint64_t addr,
+    uint32_t rkey) { // TODO: This function should be added to mlx5dv.h !
     seg->raddr = htobe64(addr);
     seg->rkey = htonl(rkey);
     seg->reserved = 0;
 }
 
-static void mlx5dv_set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op, uint8_t operand_type, uint8_t chunk_size, uint16_t num_of_vectors) { // TODO: This function should be added to mlx5dv.h !
+static void mlx5dv_set_vectorcalc_seg(
+    struct mlx5_wqe_vectorcalc_seg *vseg, uint8_t op, uint8_t operand_type,
+    uint8_t chunk_size,
+    uint16_t
+        num_of_vectors) { // TODO: This function should be added to mlx5dv.h !
     vseg->calc_operation = htobe32(op << 24);
     vseg->options = htobe32(operand_type << 24 |
 #if __BYTE_ORDER == __LITTLE_ENDIAN
@@ -51,7 +57,9 @@ static void mlx5dv_set_vectorcalc_seg(struct mlx5_wqe_vectorcalc_seg *vseg, uint
                             chunk_size << 16 | num_of_vectors);
 }
 
-static inline void mlx5dv_set_coredirect_seg(struct mlx5_wqe_coredirect_seg *seg, uint32_t index, uint32_t number) {
+static inline void
+mlx5dv_set_coredirect_seg(struct mlx5_wqe_coredirect_seg *seg, uint32_t index,
+                          uint32_t number) {
     seg->index = htonl(index);
     seg->number = htonl(number);
 }
@@ -125,8 +133,11 @@ qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
     this->scq = new cq_ctx(scq, num_of_send_cqes);
 }
 
-qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
-               size_t num_of_cqes) { // TODO: Consider useing a single constructor of qp_ctx with default value on scq argument as nullptr and 0 for num_of_send_cqes. 
+qp_ctx::qp_ctx(
+    struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
+    size_t num_of_cqes) { // TODO: Consider useing a single constructor of
+                          // qp_ctx with default value on scq argument as
+                          // nullptr and 0 for num_of_send_cqes.
 
     int ret; // TODO: Not is use. Consider removing.
 
@@ -194,9 +205,7 @@ qp_ctx::~qp_ctx() {
     free(this->cq);
 }
 
-void qp_ctx::set_pair(qp_ctx *qp) {
-    this->pair = qp;
-};
+void qp_ctx::set_pair(qp_ctx *qp) { this->pair = qp; };
 
 int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
                      // or something like it.
@@ -236,7 +245,6 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
                                   // . Consider using that function instead of
                                   // explicitly writing this code again.
 
-
         // Updating the Consumer Index (CI) in CQ Doorbell record as described
         // in
         // the PRM v0.49 External, Section 8.18.2, CQ DoorBell Record.
@@ -269,7 +277,8 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
         // Updating the pointer to the location where the next expected CQE
         // will be written by the hardware (in case the hardware will execute
         // another collective operation)
-        this->cur_cqe = (volatile struct mlx5_cqe64 *)next_expected_cqe_location;
+        this->cur_cqe =
+            (volatile struct mlx5_cqe64 *)next_expected_cqe_location;
         return 1;
     } else {
         return 0;

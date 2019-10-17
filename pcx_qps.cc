@@ -33,13 +33,9 @@ LambdaInstruction TransportQp::send_credit() {
     return lambda;
 }
 
-void TransportQp::set_pair(PcxQp *pair_) {
-    this->pair = pair_;
-};
+void TransportQp::set_pair(PcxQp *pair_) { this->pair = pair_; };
 
-const PcxQp *TransportQp::get_pair() {
-    return this->pair;
-};
+const PcxQp *TransportQp::get_pair() { return this->pair; };
 
 ManagementQp::ManagementQp(VerbCtx *ctx)
     : PcxQp(ctx), last_qp(0), has_stack(false) {}
@@ -173,8 +169,8 @@ LambdaInstruction LoopbackQp::reduce_write(
     uint8_t op, uint8_t type, bool require_cmpl) {
     wqe_count += 2;
     ++this->pair->cqe_count;
-    LambdaInstruction lambda =
-        [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    LambdaInstruction lambda = [this, local, remote, num_vectors, op, type,
+                                require_cmpl]() {
         this->qp->reduce_write(local, remote, num_vectors, op, type,
                                require_cmpl);
     };
@@ -187,8 +183,8 @@ LambdaInstruction LoopbackQp::reduce_write(
     uint8_t op, uint8_t type, bool require_cmpl) {
     wqe_count += 2;
     ++this->pair->cqe_count;
-    LambdaInstruction lambda =
-        [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    LambdaInstruction lambda = [this, local, remote, num_vectors, op, type,
+                                require_cmpl]() {
         this->qp->reduce_write(local, remote, num_vectors, op, type,
                                require_cmpl);
     };

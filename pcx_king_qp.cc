@@ -3,7 +3,7 @@
 
 DoublingQp::DoublingQp(VerbCtx *ctx, p2p_exchange_func func, void *comm,
                        uint32_t peer, uint32_t tag, NetMem *incomingBuffer)
-    : TransportQp(ctx), incoming(incomingBuffer), comm_(comm),  tag_(tag) {        
+    : TransportQp(ctx), incoming(incomingBuffer), comm_(comm), tag_(tag) {
     this->has_scq = true;
     using namespace std::placeholders;
     exchange = std::bind(func, comm, _1, _2, _3, peer, tag);
@@ -30,7 +30,8 @@ void DoublingQp::init() {
         PERR(CQCreateFailed);
     }
 
-    ibqp = ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
+    ibqp =
+        ctx_->create_coredirect_slave_rc_qp(ibcq, wqe_count, cqe_count, ibscq);
 
     if (!ibqp) {
         PERR(QPCreateFailed);
@@ -124,8 +125,8 @@ LambdaInstruction DoublingQp::reduce_write(
     uint8_t op, uint8_t type, bool require_cmpl) {
     wqe_count += 2;
     ++this->pair->cqe_count;
-    LambdaInstruction lambda =
-        [this, local, remote, num_vectors, op, type, require_cmpl]() {
+    LambdaInstruction lambda = [this, local, remote, num_vectors, op, type,
+                                require_cmpl]() {
         this->qp->reduce_write(local, remote, num_vectors, op, type,
                                require_cmpl);
     };

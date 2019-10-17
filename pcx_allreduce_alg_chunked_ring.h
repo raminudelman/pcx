@@ -3,10 +3,10 @@
 #pragma once
 
 #include "pcx_allreduce_alg_common.h"
+#include "pcx_comm_graph.h"
 #include "pcx_mem.h"
 #include "pcx_qps.h"
 #include "pcx_verbs_ctx.h"
-#include "pcx_comm_graph.h"
 
 #ifdef DEBUG
 #define PCX_RING_PRINT(args...)                                                \
@@ -50,15 +50,9 @@ template <typename T> class PcxAllreduceChunkedRing {
                             uint32_t tag1, uint32_t tag2,
                             void *comm) // TODO: Need to add as argument also
                                         // ReductionFunction/Type.
-        : contextSize_(contextSize),
-          contextRank_(contextRank),
-          ptrs_(ptrs),
-          count_(count),
-          bytes_(count_ * sizeof(T)),
-          pieceSize_(bytes_ / contextSize),
-          tag1(tag1),
-          tag2(tag2),
-          comm(comm) {
+        : contextSize_(contextSize), contextRank_(contextRank), ptrs_(ptrs),
+          count_(count), bytes_(count_ * sizeof(T)),
+          pieceSize_(bytes_ / contextSize), tag1(tag1), tag2(tag2), comm(comm) {
         PCX_RING_PRINT("Initializing PcxAllreduceRing \n");
         // In case the communicator is of size 1,
         // No need to reduce the ptrs vector, because
@@ -163,7 +157,8 @@ template <typename T> class PcxAllreduceChunkedRing {
 
         // Try to use device memory for registeration. If not possible
         // PCX will fallback to regular host memory.
-        int temp_type = PCX_MEMORY_TYPE_MEMIC; // TODO: Make it controlable by ENV variable.
+        int temp_type =
+            PCX_MEMORY_TYPE_MEMIC; // TODO: Make it controlable by ENV variable.
 
         pipeline_ = RING_PIPELINE_DEPTH;
 
@@ -213,8 +208,8 @@ template <typename T> class PcxAllreduceChunkedRing {
         for (unsigned step_idx = 0; step_idx < step_count; step_idx++) {
             size_t piece = (contextSize_ + myRank - step_idx) % contextSize_;
             for (int k = 0; k < vectors_to_reduce; ++k) {
-                rd_.iters[step_idx]
-                    .umr_iov.push_back(new RefMem((*mem_.usr_vec[k])[piece]));
+                rd_.iters[step_idx].umr_iov.push_back(
+                    new RefMem((*mem_.usr_vec[k])[piece]));
             }
             if (step_idx > 0) {
                 rd_.iters[step_idx].umr_iov.push_back(new RefMem(
@@ -352,7 +347,7 @@ template <typename T> class PcxAllreduceChunkedRing {
     // Debug function // TODO: Make this function private!
     void debug_hang_report(std::string str, int count = 0) {
 #ifdef HANG_REPORT
-        if ((count != 0)and(count != 1000000)) {
+        if ((count != 0) and (count != 1000000)) {
             return;
         }
         if (contextRank_ != 0) {
@@ -475,7 +470,7 @@ template <typename T> class PcxAllreduceChunkedRing {
 
     class StepCtx {
       public:
-        StepCtx() : outgoing_buf(NULL), umr_iov() {};
+        StepCtx() : outgoing_buf(NULL), umr_iov(){};
         ~StepCtx() {
             delete (this->outgoing_buf);
             freeIov(umr_iov);

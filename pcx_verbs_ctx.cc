@@ -227,13 +227,14 @@ clean_comp_channel: // TODO: Check if never used. If not used - delete!
     PERR(CouldNotCreateQP); // throw "Failed to create QP";
 }
 
-int VerbCtx::register_dm(size_t length, uint64_t access_permissions, PcxDeviceMemory* pcx_device_memory, ibv_mr **mr) {
-    
+int VerbCtx::register_dm(size_t length, uint64_t access_permissions,
+                         PcxDeviceMemory *pcx_device_memory, ibv_mr **mr) {
+
     if (length > this->maxMemic) {
         PERR(AllocateDeviceMemoryFailed);
     };
 
-    struct ibv_exp_alloc_dm_attr dm_attr = { 0 };
+    struct ibv_exp_alloc_dm_attr dm_attr = {0};
     dm_attr.length = length;
     struct ibv_exp_dm *dm = ibv_exp_alloc_dm(this->context, &dm_attr);
     if (!dm) {
@@ -260,7 +261,8 @@ int VerbCtx::register_dm(size_t length, uint64_t access_permissions, PcxDeviceMe
     }
 }
 
-int VerbCtx::register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **res_mr) {
+int VerbCtx::register_umr(std::vector<PcxMemRegion *> &mem_vec,
+                          struct ibv_mr **res_mr) {
     unsigned mem_reg_cnt = mem_vec.size();
 
     if (mem_reg_cnt > this->attrs.umr_caps.max_klm_list_size) {
@@ -301,7 +303,7 @@ int VerbCtx::register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **r
     struct ibv_exp_mem_region *mem_reg = (struct ibv_exp_mem_region *)malloc(
         mem_reg_cnt * sizeof(struct ibv_exp_mem_region));
     for (buf_idx = 0; buf_idx < mem_reg_cnt; ++buf_idx) {
-        struct ibv_exp_mem_region* mem = mem_vec[buf_idx]->GetPcxMemRegion();
+        struct ibv_exp_mem_region *mem = mem_vec[buf_idx]->GetPcxMemRegion();
         mem_reg[buf_idx].base_addr = mem->base_addr;
         mem_reg[buf_idx].length = mem->length;
         mem_reg[buf_idx].mr = mem->mr;
@@ -349,7 +351,8 @@ int VerbCtx::register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **r
     return 0;
 }
 
-struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t send_wq_size) {
+struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq,
+                                                    uint16_t send_wq_size) {
 
     int rc = PCOLL_SUCCESS;
     struct ibv_exp_qp_init_attr init_attr;
@@ -387,8 +390,9 @@ struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t 
         attr.port_num = 1;
         attr.qp_access_flags = 0;
 
-        rc = ibv_modify_qp(_mq, &attr, IBV_QP_STATE | IBV_QP_PKEY_INDEX |
-                                           IBV_QP_PORT | IBV_QP_ACCESS_FLAGS);
+        rc = ibv_modify_qp(_mq, &attr,
+                           IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT |
+                               IBV_QP_ACCESS_FLAGS);
         if (rc) {
             rc = PCOLL_ERROR;
         }
@@ -418,10 +422,11 @@ struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t 
 
         attr.ah_attr.grh.dgid = gid;
 
-        rc = ibv_modify_qp(
-            _mq, &attr, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
-                            IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
-                            IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
+        rc =
+            ibv_modify_qp(_mq, &attr,
+                          IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
+                              IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
+                              IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
 
         if (rc) {
             PERR(QpFailedRTR);
@@ -435,10 +440,10 @@ struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t 
         attr.rnr_retry = 7;
         attr.sq_psn = 0;
         attr.max_rd_atomic = 1;
-        rc = ibv_modify_qp(_mq, &attr, IBV_QP_STATE | IBV_QP_TIMEOUT |
-                                           IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
-                                           IBV_QP_SQ_PSN |
-                                           IBV_QP_MAX_QP_RD_ATOMIC);
+        rc = ibv_modify_qp(_mq, &attr,
+                           IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT |
+                               IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN |
+                               IBV_QP_MAX_QP_RD_ATOMIC);
         if (rc) {
             rc = PCOLL_ERROR;
         }
@@ -446,11 +451,9 @@ struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t 
     return _mq;
 }
 
-struct ibv_qp *VerbCtx::create_coredirect_slave_rc_qp(struct ibv_cq *cq,
-                                         uint16_t send_wq_size,
-                                         uint16_t recv_rq_size,
-                                         struct ibv_cq *s_cq, int slaveRecv,
-                                         int slaveSend) {
+struct ibv_qp *VerbCtx::create_coredirect_slave_rc_qp(
+    struct ibv_cq *cq, uint16_t send_wq_size, uint16_t recv_rq_size,
+    struct ibv_cq *s_cq, int slaveRecv, int slaveSend) {
     struct ibv_exp_qp_init_attr init_attr;
     struct ibv_qp_attr attr;
     memset(&init_attr, 0, sizeof(init_attr));
@@ -486,8 +489,9 @@ struct ibv_qp *VerbCtx::create_coredirect_slave_rc_qp(struct ibv_cq *cq,
     qp_attr.port_num = 1;
     qp_attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
 
-    if (ibv_modify_qp(qp, &qp_attr, IBV_QP_STATE | IBV_QP_PKEY_INDEX |
-                                        IBV_QP_PORT | IBV_QP_ACCESS_FLAGS)) {
+    if (ibv_modify_qp(qp, &qp_attr,
+                      IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT |
+                          IBV_QP_ACCESS_FLAGS)) {
         PERR(QPInitFailed);
     }
 
@@ -495,8 +499,8 @@ struct ibv_qp *VerbCtx::create_coredirect_slave_rc_qp(struct ibv_cq *cq,
 }
 
 struct ibv_cq *VerbCtx::create_coredirect_cq(int cqe, void *cq_context,
-                                   struct ibv_comp_channel *channel,
-                                   int comp_vector) {
+                                             struct ibv_comp_channel *channel,
+                                             int comp_vector) {
     if (cqe == 0) {
         ++cqe;
     }
@@ -555,10 +559,10 @@ int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp) {
     attr.ah_attr.grh.dgid = addr->gid;
     attr.ah_attr.grh.sgid_index = GID_INDEX;
     int res;
-    res = ibv_modify_qp(qp, &attr, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
-                                       IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
-                                       IBV_QP_MAX_DEST_RD_ATOMIC |
-                                       IBV_QP_MIN_RNR_TIMER);
+    res = ibv_modify_qp(qp, &attr,
+                        IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
+                            IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
+                            IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
     if (res) {
         fprintf(stderr, "Failed to modify QP to RTR. reason: %d\n", res);
         PERR(CouldNotModifyQpToRTR); // throw "a";
@@ -571,9 +575,10 @@ int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp) {
     attr.rnr_retry = 7;
     attr.sq_psn = addr->psn;
     attr.max_rd_atomic = 1;
-    if (ibv_modify_qp(qp, &attr, IBV_QP_STATE | IBV_QP_TIMEOUT |
-                                     IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
-                                     IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC)) {
+    if (ibv_modify_qp(qp, &attr,
+                      IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT |
+                          IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN |
+                          IBV_QP_MAX_QP_RD_ATOMIC)) {
         // PERR(QpFailedRTS);
         PERR(CouldNotModifyQpToRTS); // throw 3;
     }

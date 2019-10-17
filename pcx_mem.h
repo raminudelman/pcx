@@ -55,7 +55,7 @@ enum PCX_MEMORY_TYPE {
 // Network Memory
 class NetMem { // TODO: Change class name to "PcxMem" or "PcxBaseMem"
   public:
-    NetMem() {};
+    NetMem(){};
     virtual ~NetMem() = 0;
     struct ibv_sge *sg() {
         return &sge;
@@ -133,12 +133,8 @@ class PipeMem {
     RefMem next();
     void print();
 
-    size_t getLength() {
-        return length;
-    };
-    size_t getDepth() {
-        return depth;
-    };
+    size_t getLength() { return length; };
+    size_t getDepth() { return depth; };
 
   private:
     NetMem *mem;

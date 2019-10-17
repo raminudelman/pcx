@@ -11,7 +11,7 @@ void CommGraph::regQp(ManagementQp *qp) {
 }
 
 void CommGraph::regQp(LoopbackQp *qp) {
-    LambdaInstruction lambda = this->mqp->cd_recv_enable(qp);
+    LambdaInstruction lambda = this->mqp->cd_recv_enable(qp); 
     this->enqueue(lambda);
     regQpCommon(qp);
     QP_PRINT("Registered LoopbackQp with ID='%d' \n", qp->id);

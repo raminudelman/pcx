@@ -81,22 +81,21 @@
    code prior to calling verbs to start a DMA.
 */
 #if defined(__i386__)
-#define udma_to_device_barrier() asm volatile("" :: : "memory")
+#define udma_to_device_barrier() asm volatile("" ::: "memory")
 #elif defined(__x86_64__)
-#define udma_to_device_barrier() asm volatile("" :: : "memory")
+#define udma_to_device_barrier() asm volatile("" ::: "memory")
 #elif defined(__PPC64__)
-#define udma_to_device_barrier() asm volatile("sync" :: : "memory")
+#define udma_to_device_barrier() asm volatile("sync" ::: "memory")
 #elif defined(__PPC__)
-#define udma_to_device_barrier() asm volatile("sync" :: : "memory")
+#define udma_to_device_barrier() asm volatile("sync" ::: "memory")
 #elif defined(__ia64__)
-#define udma_to_device_barrier() asm volatile("mf" :: : "memory")
+#define udma_to_device_barrier() asm volatile("mf" ::: "memory")
 #elif defined(__sparc_v9__)
-#define udma_to_device_barrier()                                               \
-    asm volatile("membar #StoreStore" :: : "memory")
+#define udma_to_device_barrier() asm volatile("membar #StoreStore" ::: "memory")
 #elif defined(__aarch64__)
-#define udma_to_device_barrier() asm volatile("dsb st" :: : "memory");
+#define udma_to_device_barrier() asm volatile("dsb st" ::: "memory");
 #elif defined(__sparc__) || defined(__s390x__)
-#define udma_to_device_barrier() asm volatile("" :: : "memory")
+#define udma_to_device_barrier() asm volatile("" ::: "memory")
 #else
 #error No architecture specific memory barrier defines found!
 #endif
@@ -115,22 +114,21 @@
 */
 #if defined(__i386__)
 #define udma_from_device_barrier()                                             \
-    asm volatile("lock; addl $0,0(%%esp) " :: : "memory")
+    asm volatile("lock; addl $0,0(%%esp) " ::: "memory")
 #elif defined(__x86_64__)
-#define udma_from_device_barrier() asm volatile("lfence" :: : "memory")
+#define udma_from_device_barrier() asm volatile("lfence" ::: "memory")
 #elif defined(__PPC64__)
-#define udma_from_device_barrier() asm volatile("lwsync" :: : "memory")
+#define udma_from_device_barrier() asm volatile("lwsync" ::: "memory")
 #elif defined(__PPC__)
-#define udma_from_device_barrier() asm volatile("sync" :: : "memory")
+#define udma_from_device_barrier() asm volatile("sync" ::: "memory")
 #elif defined(__ia64__)
-#define udma_from_device_barrier() asm volatile("mf" :: : "memory")
+#define udma_from_device_barrier() asm volatile("mf" ::: "memory")
 #elif defined(__sparc_v9__)
-#define udma_from_device_barrier()                                             \
-    asm volatile("membar #LoadLoad" :: : "memory")
+#define udma_from_device_barrier() asm volatile("membar #LoadLoad" ::: "memory")
 #elif defined(__aarch64__)
-#define udma_from_device_barrier() asm volatile("dsb ld" :: : "memory");
+#define udma_from_device_barrier() asm volatile("dsb ld" ::: "memory");
 #elif defined(__sparc__) || defined(__s390x__)
-#define udma_from_device_barrier() asm volatile("" :: : "memory")
+#define udma_from_device_barrier() asm volatile("" ::: "memory")
 #else
 #error No architecture specific memory barrier defines found!
 #endif
@@ -180,22 +178,21 @@
    PCI-E MemWr TLPs from the CPU.
 */
 #if defined(__i386__)
-#define mmio_flush_writes()                                                    \
-    asm volatile("lock; addl $0,0(%%esp) " :: : "memory")
+#define mmio_flush_writes() asm volatile("lock; addl $0,0(%%esp) " ::: "memory")
 #elif defined(__x86_64__)
-#define mmio_flush_writes() asm volatile("sfence" :: : "memory")
+#define mmio_flush_writes() asm volatile("sfence" ::: "memory")
 #elif defined(__PPC64__)
-#define mmio_flush_writes() asm volatile("sync" :: : "memory")
+#define mmio_flush_writes() asm volatile("sync" ::: "memory")
 #elif defined(__PPC__)
-#define mmio_flush_writes() asm volatile("sync" :: : "memory")
+#define mmio_flush_writes() asm volatile("sync" ::: "memory")
 #elif defined(__ia64__)
-#define mmio_flush_writes() asm volatile("fwb" :: : "memory")
+#define mmio_flush_writes() asm volatile("fwb" ::: "memory")
 #elif defined(__sparc_v9__)
-#define mmio_flush_writes() asm volatile("membar #StoreStore" :: : "memory")
+#define mmio_flush_writes() asm volatile("membar #StoreStore" ::: "memory")
 #elif defined(__aarch64__)
-#define mmio_flush_writes() asm volatile("dsb st" :: : "memory");
+#define mmio_flush_writes() asm volatile("dsb st" ::: "memory");
 #elif defined(__sparc__) || defined(__s390x__)
-#define mmio_flush_writes() asm volatile("" :: : "memory")
+#define mmio_flush_writes() asm volatile("" ::: "memory")
 #else
 #error No architecture specific memory barrier defines found!
 #endif

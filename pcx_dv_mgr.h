@@ -31,8 +31,8 @@
  */
 #pragma once
 
-#include "pcx_udma_barrier.h"
 #include "pcx_mem.h"
+#include "pcx_udma_barrier.h"
 
 extern "C" {
 #include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
@@ -41,14 +41,14 @@ extern "C" {
 }
 
 #include <inttypes.h>
+#include <map>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <map>
 
-#define memory_store_fence() asm volatile("" :: : "memory")
-#define pci_store_fence() asm volatile("sfence" :: : "memory")
+#define memory_store_fence() asm volatile("" ::: "memory")
+#define pci_store_fence() asm volatile("sfence" ::: "memory")
 
 #define CE 0 // TODO: Why is this value is the correct value?
 
@@ -73,7 +73,9 @@ enum mlx5dv_vector_calc_data_type {
     MLX5DV_VECTOR_CALC_DATA_TYPE_NUMBER
 };
 
-enum mlx5dv_vector_calc_chunks { // TODO: No one uses it in PCX but maybe this should be added to mlx5dv as part of Vector-CALC feature.
+enum mlx5dv_vector_calc_chunks { // TODO: No one uses it in PCX but maybe this
+                                 // should be added to mlx5dv as part of
+                                 // Vector-CALC feature.
     MLX5DV_VECTOR_CALC_CHUNK_64 = 0,
     MLX5DV_VECTOR_CALC_CHUNK_128,
     MLX5DV_VECTOR_CALC_CHUNK_256,
@@ -82,7 +84,8 @@ enum mlx5dv_vector_calc_chunks { // TODO: No one uses it in PCX but maybe this s
     MLX5DV_VECTOR_CALC_CHUNK_2048,
     MLX5DV_VECTOR_CALC_CHUNK_4096,
     MLX5DV_VECTOR_CALC_CHUNK_8192,
-    MLX5DV_VECTOR_CALC_CHUNK_NUMBER };
+    MLX5DV_VECTOR_CALC_CHUNK_NUMBER
+};
 
 struct mlx5_wqe_coredirect_seg {
     uint64_t rsvd;
@@ -123,8 +126,8 @@ typedef UpdateMap::iterator MapIt;
 
 class RearmTasks {
   public:
-    RearmTasks() {};
-    ~RearmTasks() {};
+    RearmTasks(){};
+    ~RearmTasks(){};
     void add(uint32_t *ptr, int inc);
     void exec(uint32_t offset, int phase, int dups);
 
@@ -213,9 +216,7 @@ class qp_ctx {
 
     cq_ctx *scq;
 
-    uint32_t get_poll_cnt() {
-        return this->poll_cnt;
-    };
+    uint32_t get_poll_cnt() { return this->poll_cnt; };
 
   private:
     // The amount of WQEBBs (single WQEBB (WQE Basic Block) is 64 Bytes
