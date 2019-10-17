@@ -227,6 +227,128 @@ clean_comp_channel: // TODO: Check if never used. If not used - delete!
     PERR(CouldNotCreateQP); // throw "Failed to create QP";
 }
 
+int VerbCtx::register_dm(size_t length, uint64_t access_permissions, PcxDeviceMemory* pcx_device_memory, ibv_mr **mr) {
+    
+    if (length > this->maxMemic) {
+        PERR(AllocateDeviceMemoryFailed);
+    };
+
+    struct ibv_exp_alloc_dm_attr dm_attr = { 0 };
+    dm_attr.length = length;
+    struct ibv_exp_dm *dm = ibv_exp_alloc_dm(this->context, &dm_attr);
+    if (!dm) {
+        PERR(AllocateDeviceMemoryFailed);
+    }
+
+    pcx_device_memory->SetDeviceMemory(&dm);
+    if (!pcx_device_memory->IsAllocated()) {
+        PERR(AllocateDeviceMemoryFailed);
+    }
+
+    struct ibv_exp_reg_mr_in mr_in;
+    mr_in.pd = this->pd;
+    mr_in.addr = 0;
+    mr_in.length = length;
+    mr_in.exp_access = IB_ACCESS_FLAGS;
+    mr_in.create_flags = 0;
+    mr_in.dm = dm;
+    mr_in.comp_mask = IBV_EXP_REG_MR_DM;
+
+    *mr = ibv_exp_reg_mr(&mr_in);
+    if (!(*mr)) {
+        PERR(ExpRegMrFailed)
+    }
+}
+
+int VerbCtx::register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **res_mr) {
+    unsigned mem_reg_cnt = mem_vec.size();
+
+    if (mem_reg_cnt > this->attrs.umr_caps.max_klm_list_size) {
+        PERR(NotEnoughKLMs);
+    }
+
+    if (mem_reg_cnt == 0) {
+        PERR(EmptyUMR);
+    }
+
+    struct ibv_exp_mkey_list_container *umr_mkey = nullptr;
+    if (mem_reg_cnt > this->attrs.umr_caps.max_send_wqe_inline_klms) {
+        struct ibv_exp_mkey_list_container_attr list_container_attr;
+        list_container_attr.pd = this->pd;
+        list_container_attr.mkey_list_type = IBV_EXP_MKEY_LIST_TYPE_INDIRECT_MR;
+        list_container_attr.max_klm_list_size = mem_reg_cnt;
+        list_container_attr.comp_mask = 0;
+        umr_mkey = ibv_exp_alloc_mkey_list_memory(&list_container_attr);
+        if (!umr_mkey) {
+            PERR(NoUMRKey);
+        }
+    } else {
+        umr_mkey = NULL;
+    }
+
+    struct ibv_exp_create_mr_in mrin;
+    memset(&mrin, 0, sizeof(mrin));
+    mrin.pd = this->pd;
+    mrin.attr.create_flags = IBV_EXP_MR_INDIRECT_KLMS;
+    mrin.attr.exp_access_flags = IB_ACCESS_FLAGS;
+    mrin.attr.max_klm_list_size = mem_reg_cnt;
+    *res_mr = ibv_exp_create_mr(&mrin);
+    if (!(*res_mr)) {
+        PERR(CreateMRFailed);
+    }
+
+    int buf_idx = 0;
+    struct ibv_exp_mem_region *mem_reg = (struct ibv_exp_mem_region *)malloc(
+        mem_reg_cnt * sizeof(struct ibv_exp_mem_region));
+    for (buf_idx = 0; buf_idx < mem_reg_cnt; ++buf_idx) {
+        struct ibv_exp_mem_region* mem = mem_vec[buf_idx]->GetPcxMemRegion();
+        mem_reg[buf_idx].base_addr = mem->base_addr;
+        mem_reg[buf_idx].length = mem->length;
+        mem_reg[buf_idx].mr = mem->mr;
+    }
+
+    // Create the UMR WR (work request)
+    struct ibv_exp_send_wr wr, *bad_wr;
+    memset(&wr, 0, sizeof(wr));
+    wr.exp_opcode = IBV_EXP_WR_UMR_FILL;
+    wr.exp_send_flags = IBV_EXP_SEND_SIGNALED;
+    wr.ext_op.umr.umr_type = IBV_EXP_UMR_MR_LIST;
+    wr.ext_op.umr.memory_objects = umr_mkey;
+    wr.ext_op.umr.modified_mr = *res_mr;
+    wr.ext_op.umr.base_addr = mem_reg[0].base_addr;
+    wr.ext_op.umr.num_mrs = mem_reg_cnt;
+    wr.ext_op.umr.mem_list.mem_reg_list = mem_reg;
+    if (!umr_mkey) {
+        wr.exp_send_flags |= IBV_EXP_SEND_INLINE;
+    }
+
+    // Post the UMR WR and wait for it to complete
+    if (int res = ibv_exp_post_send(this->umr_qp, &wr, &bad_wr)) {
+        RES_ERR(UMR_PostFailed, res);
+    }
+    struct ibv_wc wc;
+    for (;;) { // Wait for the UMR WR to complete
+        int ret = ibv_poll_cq(this->umr_cq, 1, &wc);
+        if (ret < 0) {
+            PERR(UMR_PollFailed);
+        }
+        if (ret == 1) {
+            if (wc.status != IBV_WC_SUCCESS) {
+                PERR(UMR_CompletionInError);
+            }
+            break;
+        }
+    }
+
+    if (umr_mkey) {
+        ibv_exp_dealloc_mkey_list_memory(umr_mkey);
+    }
+
+    free(mem_reg);
+
+    return 0;
+}
+
 struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq, uint16_t send_wq_size) {
 
     int rc = PCOLL_SUCCESS;

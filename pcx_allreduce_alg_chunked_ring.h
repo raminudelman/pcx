@@ -161,16 +161,9 @@ template <typename T> class PcxAllreduceChunkedRing {
                                                (size_t)contextSize_, ibv_ctx_));
         }
 
-        int temp_type = PCX_MEMORY_TYPE_MEMIC;
-        temp_type =
-            PCX_MEMORY_TYPE_HOST; // CHECK: Why is this patch needed? Why MEMIC
-                                  // cannot be used? MEMIC worked but during
-                                  // debug this code was added to prevent other
-                                  // bugs or compilcations. MEMIC is not that
-                                  // important and did not help performance too
-                                  // much because after some point the MEMIC
-                                  // region is not enought and it wil fall back
-                                  // to host mem anyway.
+        // Try to use device memory for registeration. If not possible
+        // PCX will fallback to regular host memory.
+        int temp_type = PCX_MEMORY_TYPE_MEMIC; // TODO: Make it controlable by ENV variable.
 
         pipeline_ = RING_PIPELINE_DEPTH;
 

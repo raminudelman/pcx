@@ -126,7 +126,7 @@ qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
 }
 
 qp_ctx::qp_ctx(struct ibv_qp *qp, struct ibv_cq *cq, size_t num_of_wqes,
-               size_t num_of_cqes) {
+               size_t num_of_cqes) { // TODO: Consider useing a single constructor of qp_ctx with default value on scq argument as nullptr and 0 for num_of_send_cqes. 
 
     int ret; // TODO: Not is use. Consider removing.
 

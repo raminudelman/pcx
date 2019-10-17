@@ -55,6 +55,7 @@ extern "C" {
 #include <string.h>
 #include <unistd.h>
 #include <mutex>
+#include <vector>
 
 #define VALIDITY_CHECKX
 #define HANG_REPORTX
@@ -92,6 +93,9 @@ extern "C" {
 #define PRINT(x)
 #define PRINTF(f_, ...)
 #endif
+
+#define IB_ACCESS_FLAGS                                                        \
+    (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
 
 // CORE-Direct (CD) status
 enum coredirect_statuses {
@@ -151,7 +155,51 @@ PCX_ERROR(CQCreateFailed)
        // problem to keep increasing it? It will consume more memory... are
        // there any more implications?
 
-class VerbCtx {
+// This class is used as a wrapper for the ibv_exp_mem_region struct so PCX will be able
+// to have a level of abstraction when verbs_exp will not be in use anymore.
+class PcxMemRegion {
+  public:
+    PcxMemRegion(uint64_t base_address, size_t length, ibv_mr **mr) {
+        mem_region.base_addr = base_address;
+        mem_region.length = length;
+        mem_region.mr = *mr;
+    };
+    ~PcxMemRegion() {}
+    struct ibv_exp_mem_region* GetPcxMemRegion() {
+        return &mem_region;
+    }
+  private:
+    struct ibv_exp_mem_region mem_region;
+};
+
+// This class is used as a wrapper for the ibv_exp_dm struct so PCX will be able
+// to have a level of abstraction when verbs_exp will not be in use anymore.
+class PcxDeviceMemory { // TODO: Consider moving this class into the VerbCtx class
+  public:
+    PcxDeviceMemory() : dm_(NULL) {}
+    ~PcxDeviceMemory() {
+        FreeDeviceMemory();
+    }
+    void SetDeviceMemory(struct ibv_exp_dm **dm) {
+        dm_ = *dm;
+    }
+    struct ibv_exp_dm* GetDeviceMemory() {
+        return dm_;
+    }
+    bool IsAllocated() {
+        // Return true if dm_ is not NULL
+        return !!dm_;
+    }
+  private:
+    void FreeDeviceMemory() {
+        if (IsAllocated()) {
+            ibv_exp_free_dm(this->dm_);
+        }
+    }
+    struct ibv_exp_dm *dm_;
+};
+
+class VerbCtx { // TODO: Consider changing the name into PcxVerbsControlService
   private:
     VerbCtx(); // TODO: Need to make this public and use some way of allocating
                // only a single instance. The function "getInstance" is
@@ -161,31 +209,32 @@ class VerbCtx {
     static bool safeFlag;
     static std::mutex iniMtx;
 
+    // Holds the amount of DM (Device Memory) (in Bytes?) that the device has.
+    // If the device does not suppport DM, this member will be set to 0.
+    size_t maxMemic;
+
+    // These QPs are used for registering UMR memory
+    struct ibv_cq *umr_cq;
+    struct ibv_qp *umr_qp;
+
   public:
     static VerbCtx *getInstance();
     static void remInstance();
 
     ~VerbCtx();
-    struct ibv_context *context;
+    struct ibv_context *context; // TODO: Consider changing to private
     struct ibv_pd *pd;
-
-    // These QPs are used for registering UMR memory
-    struct ibv_cq *umr_cq; // TODO: Can this be defined as local variable in
-                           // VerbCtx() c'tor?
-    struct ibv_qp *umr_qp;
 
     struct ibv_comp_channel *channel; // TODO: This is unused. Can it be
                                       // removed?
 
-    struct ibv_exp_device_attr attrs; // Type defined in verbs_exp.h // TODO:
-                                      // Consider removing this member as it
-                                      // used only for setting the maxMemic
-                                      // member and during UMR registration
+    struct ibv_exp_device_attr attrs;
+    
     std::mutex mtx;
 
-    // Holds the amount of DM (Device Memory) (in Bytes?) that the device has.
-    // If the device does not suppport DM, this member will be set to 0.
-    size_t maxMemic;
+    int register_dm(size_t length, uint64_t access_permissions, PcxDeviceMemory* pcx_device_memory, struct ibv_mr **mr);
+
+    int register_umr(std::vector<PcxMemRegion*>& mem_vec, struct ibv_mr **res_mr); // TODO: Add access_permissions like in register_dm
 
     struct ibv_qp *create_coredirect_master_qp(struct ibv_cq *cq, uint16_t send_wq_size); 
 
@@ -219,5 +268,5 @@ typedef struct rd_peer_info {
 
 // These two functions are needed here because during creation of the verbs
 // context, a "UMR QP" is created within the context
-int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr);
-int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp);
+int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr); // TODO: Consider moving this function to be part of the VerbCtx class
+int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp); // TODO: Consider moving this function to be part of the VerbCtx class

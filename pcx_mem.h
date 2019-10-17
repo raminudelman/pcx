@@ -34,9 +34,8 @@
 // Used for registering the UMR
 #include "pcx_verbs_ctx.h"
 
-// Used creating UMR (User Memory Region) and DM (Device Memory).
-// Note: Search for "ibv_exp" in the pcx_mem.cc file.
-#include <infiniband/verbs_exp.h>
+// Used for ibv_mr, ibv_sge, etc.
+#include <infiniband/verbs.h>
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -44,9 +43,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <vector>
-
-#define IB_ACCESS_FLAGS                                                        \
-    (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ)
 
 enum PCX_MEMORY_TYPE {
     PCX_MEMORY_TYPE_HOST,
@@ -97,8 +93,7 @@ class Memic : public NetMem {
     ~Memic();
 
   private:
-    struct ibv_exp_dm *dm; // TODO: Remove the dependency of verbs_exp
-                           // ("Experimental Verbs")
+    PcxDeviceMemory pcx_dm;
 };
 
 class UsrMem : public NetMem {
@@ -118,9 +113,6 @@ class UmrMem : public NetMem {
   public:
     UmrMem(std::vector<NetMem *> &mem_reg, VerbCtx *ctx);
     ~UmrMem();
-
-  private:
-    struct ibv_mr *register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx);
 };
 
 class RemoteMem : public NetMem {

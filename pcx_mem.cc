@@ -56,28 +56,7 @@ HostMem::~HostMem() {
 }
 
 Memic::Memic(size_t length, VerbCtx *ctx) {
-    struct ibv_exp_alloc_dm_attr dm_attr = { 0 };
-    dm_attr.length = length;
-    this->dm = ibv_exp_alloc_dm(ctx->context, &dm_attr);
-
-    if (!dm) {
-        PERR(AllocateDeviceMemoryFailed);
-    }
-
-    struct ibv_exp_reg_mr_in mr_in;
-    mr_in.pd = ctx->pd;
-    mr_in.addr = 0;
-    mr_in.length = length;
-    mr_in.exp_access = IB_ACCESS_FLAGS;
-    mr_in.create_flags = 0;
-    mr_in.dm = this->dm;
-    mr_in.comp_mask = IBV_EXP_REG_MR_DM;
-
-    this->mr = ibv_exp_reg_mr(&mr_in);
-
-    if (!this->mr) {
-        PERR(ExpRegMrFailed)
-    }
+    ctx->register_dm(length, IB_ACCESS_FLAGS, &(this->pcx_dm), &(this->mr));
 
     this->sge.addr = 0;
     this->sge.length = length;
@@ -86,7 +65,6 @@ Memic::Memic(size_t length, VerbCtx *ctx) {
 
 Memic::~Memic() {
     ibv_dereg_mr(this->mr);
-    ibv_exp_free_dm(this->dm);
 }
 
 UsrMem::UsrMem(void *buf, size_t length, VerbCtx *ctx) {
@@ -117,102 +95,25 @@ RefMem::RefMem(const RefMem &srcRef) {
 RefMem::~RefMem() {}
 
 UmrMem::UmrMem(std::vector<NetMem *> &iov, VerbCtx *ctx) {
-    this->mr = register_umr(iov, ctx);
+
+    std::vector<PcxMemRegion*> pcx_mem_region_vec;
+    for (int buf_idx = 0; buf_idx < iov.size(); ++buf_idx) {
+        struct ibv_mr* mr = iov[buf_idx]->getMr();
+        pcx_mem_region_vec.push_back(new PcxMemRegion(iov[buf_idx]->sg()->addr, iov[buf_idx]->sg()->length, &mr));
+    }
+
+    int ret = ctx->register_umr(pcx_mem_region_vec, &(this->mr));
+
+    for (auto it = pcx_mem_region_vec.begin(); it != pcx_mem_region_vec.end(); ++it) {
+         delete (*it);
+    }
+
     this->sge.lkey = mr->lkey;
     this->sge.length = iov[0]->sg()->length;
     this->sge.addr = iov[0]->sg()->addr;
 }
 
 UmrMem::~UmrMem() { ibv_dereg_mr(this->mr); }
-
-struct ibv_mr *UmrMem::register_umr(std::vector<NetMem *> &iov, VerbCtx *ctx) {
-
-    unsigned mem_reg_cnt = iov.size();
-
-    if (mem_reg_cnt > ctx->attrs.umr_caps.max_klm_list_size) {
-        PERR(NotEnoughKLMs);
-    }
-
-    if (mem_reg_cnt == 0) {
-        PERR(EmptyUMR);
-    }
-
-    struct ibv_exp_mkey_list_container *umr_mkey = nullptr;
-    if (mem_reg_cnt > ctx->attrs.umr_caps.max_send_wqe_inline_klms) {
-        struct ibv_exp_mkey_list_container_attr list_container_attr;
-        list_container_attr.pd = ctx->pd;
-        list_container_attr.mkey_list_type = IBV_EXP_MKEY_LIST_TYPE_INDIRECT_MR;
-        list_container_attr.max_klm_list_size = mem_reg_cnt;
-        list_container_attr.comp_mask = 0;
-        umr_mkey = ibv_exp_alloc_mkey_list_memory(&list_container_attr);
-        if (!umr_mkey) {
-            PERR(NoUMRKey);
-        }
-    } else {
-        umr_mkey = NULL;
-    }
-
-    struct ibv_exp_create_mr_in mrin;
-    memset(&mrin, 0, sizeof(mrin));
-    mrin.pd = ctx->pd;
-    mrin.attr.create_flags = IBV_EXP_MR_INDIRECT_KLMS;
-    mrin.attr.exp_access_flags = IB_ACCESS_FLAGS;
-    mrin.attr.max_klm_list_size = mem_reg_cnt;
-    struct ibv_mr *res_mr = ibv_exp_create_mr(&mrin);
-    if (!res_mr) {
-        PERR(CreateMRFailed);
-    }
-
-    int buf_idx = 0;
-    struct ibv_exp_mem_region *mem_reg = (struct ibv_exp_mem_region *)malloc(
-        mem_reg_cnt * sizeof(struct ibv_exp_mem_region));
-    for (buf_idx = 0; buf_idx < mem_reg_cnt; ++buf_idx) {
-        mem_reg[buf_idx].base_addr = iov[buf_idx]->sg()->addr;
-        mem_reg[buf_idx].length = iov[buf_idx]->sg()->length;
-        mem_reg[buf_idx].mr = iov[buf_idx]->getMr();
-    }
-
-    // Create the UMR WR (work request)
-    struct ibv_exp_send_wr wr, *bad_wr;
-    memset(&wr, 0, sizeof(wr));
-    wr.exp_opcode = IBV_EXP_WR_UMR_FILL;
-    wr.exp_send_flags = IBV_EXP_SEND_SIGNALED;
-    wr.ext_op.umr.umr_type = IBV_EXP_UMR_MR_LIST;
-    wr.ext_op.umr.memory_objects = umr_mkey;
-    wr.ext_op.umr.modified_mr = res_mr;
-    wr.ext_op.umr.base_addr = iov[0]->sg()->addr;
-    wr.ext_op.umr.num_mrs = mem_reg_cnt;
-    wr.ext_op.umr.mem_list.mem_reg_list = mem_reg;
-    if (!umr_mkey) {
-        wr.exp_send_flags |= IBV_EXP_SEND_INLINE;
-    }
-
-    // Post the UMR WR and wait for it to complete
-    if (int res = ibv_exp_post_send(ctx->umr_qp, &wr, &bad_wr)) {
-        RES_ERR(UMR_PostFailed, res);
-    }
-    struct ibv_wc wc;
-    for (;;) { // Wait for the UMR WR to complete
-        int ret = ibv_poll_cq(ctx->umr_cq, 1, &wc);
-        if (ret < 0) {
-            PERR(UMR_PollFailed);
-        }
-        if (ret == 1) {
-            if (wc.status != IBV_WC_SUCCESS) {
-                PERR(UMR_CompletionInError);
-            }
-            break;
-        }
-    }
-
-    if (umr_mkey) {
-        ibv_exp_dealloc_mkey_list_memory(umr_mkey);
-    }
-
-    free(mem_reg);
-
-    return res_mr;
-}
 
 RemoteMem::RemoteMem(uint64_t addr, uint32_t rkey) {
     sge.addr = addr;
@@ -230,21 +131,17 @@ PipeMem::PipeMem(size_t length_, size_t depth_, VerbCtx *ctx, int mem_type_)
     // Device memory allocation
     case(PCX_MEMORY_TYPE_MEMIC) : {
         bool success = true;
-        if (ctx->maxMemic >= length_) {
-            try {
-                mem = new Memic(length * depth, ctx);
-            }
-            catch (const PCX_ERR_AllocateDeviceMemoryFailed &e) {
-                success = false;
-            }
-        } else {
+        try {
+            mem = new Memic(length * depth, ctx);
+        }
+        catch (const PCX_ERR_AllocateDeviceMemoryFailed &e) {
             success = false;
         }
         if (success) {
             PRINT("Memic allocated");
             break;
         }
-        PRINT("Memic allocation failed, using host memory...");
+        PRINT("Memic allocation failed, falling-back to using host memory...");
     }
         
     // Host memory allocation
