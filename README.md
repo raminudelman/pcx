@@ -1,5 +1,4 @@
 # Persistent Collectives X (PCX)
----
 
 Persistent Collectives X (PCX) is a collective communication library aimed at providing high performance, low latency persistent collectives over RDMA devices, while minimizing CPU/GPU utilization to near-zero. 
 
@@ -44,6 +43,14 @@ In order to take full advantage of the PCX library, PCX requires:
 * GPU-Direct RDMA (In case the data for the collective operation resides in the GPU)
 
 > Note: There is work in progress to remove the dependency on MLNX_OFED 4.5 and use only [rdma-core](https://github.com/linux-rdma/rdma-core).
+
+## Install
+
+<TBD>
+
+## Tests
+
+<TBD>
 
 ## Usage Examples
 
@@ -90,7 +97,9 @@ private:
 
 Examples for implementation of collectives with low-level API of PCX can be seen here:
 
-[Recursive Doubling](pcx_allreduce_alg_king.h)
+* [Recursive Doubling](pcx_allreduce_alg_king.h)
+* [Ring](pcx_allreduce_alg_chunked_ring.h)
 
-[Ring](pcx_allreduce_alg_chunked_ring.h)
+## Copyright
 
+<TBD>
