@@ -8,7 +8,7 @@
 #include "pcx_qps.h"
 #include "pcx_verbs_ctx.h"
 
-#ifdef DEBUG
+#ifdef PCX_DEBUG
 #define PCX_RING_PRINT(args...)                                                \
     if (contextRank_ == 0) {                                                   \
         fprintf(stderr, "(%s: %d) in function %s: ", __FILE__, __LINE__,       \
@@ -19,7 +19,7 @@
 #define PCX_RING_PRINT(args...)
 #endif
 
-#define RING_PIPELINE_DEPTH 1
+#define RING_PIPELINE_DEPTH 1 // TODO: Add PCX_ prefix to this defined variable
 
 // Performs data exchange between peers in ring.
 // Sends data of size 'size' to 'peer' from 'send_buf' and

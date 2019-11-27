@@ -7,7 +7,7 @@
 #include "pcx_qps.h"
 #include "pcx_verbs_ctx.h"
 
-#ifdef DEBUG
+#ifdef PCX_DEBUG
 #define PCX_KING_PRINT(args...)                                                \
     fprintf(stderr, "(%s: %d) in function %s [%d]: ", __FILE__, __LINE__,      \
             __func__, contextRank_);                                           \
