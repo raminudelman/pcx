@@ -364,6 +364,7 @@ void qp_ctx::reduce_write(const struct ibv_sge *local,
     // DS accounts for all the segments in the WQE as summarized in WQE
     // construction
     const uint8_t ds = 5; // 1 + 1 + 2 + 1
+    const uint8_t chunk_size = 4;
     int wqe_count = qp->sq.wqe_cnt;
     ctrl =
         (struct mlx5_wqe_ctrl_seg *)((char *)qp->sq.buf +
@@ -374,7 +375,7 @@ void qp_ctx::reduce_write(const struct ibv_sge *local,
     rseg = (struct mlx5_wqe_raddr_seg *)(ctrl + 1);
     mlx5dv_set_remote_data_seg(rseg, remote->addr, remote->lkey);
     vseg = (struct mlx5_wqe_vectorcalc_seg *)(rseg + 1);
-    mlx5dv_set_vectorcalc_seg(vseg, op, type, 4, num_vectors);
+    mlx5dv_set_vectorcalc_seg(vseg, op, type, chunk_size, num_vectors);
     dseg = (struct mlx5_wqe_data_seg *)(vseg + 1);
     mlx5dv_set_data_seg(dseg, local->length, local->lkey, local->addr);
     write_cnt += 2;
