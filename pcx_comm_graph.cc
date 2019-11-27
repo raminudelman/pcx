@@ -58,10 +58,10 @@ void CommGraph::wait(PcxQp *slave_qp, bool wait_scq) {
 }
 
 void CommGraph::reduce_write(RingQp *slave_qp, NetMem *local, size_t pos,
-                             uint16_t num_vectors, uint8_t op, uint8_t type,
+                             uint16_t num_vectors, uint8_t op, uint8_t dataType,
                              bool require_cmpl) {
-    LambdaInstruction lambda =
-        slave_qp->reduce_write(local, pos, num_vectors, op, type, require_cmpl);
+    LambdaInstruction lambda = slave_qp->reduce_write(
+        local, pos, num_vectors, op, dataType, require_cmpl);
     QP_PRINT("Add graph operation: RingQP      ID='%d' will 'reduce and write' "
              "to peer ID=%d to position = %lu \n",
              slave_qp->id, slave_qp->get_pair()->id, pos);
@@ -71,9 +71,9 @@ void CommGraph::reduce_write(RingQp *slave_qp, NetMem *local, size_t pos,
 }
 void CommGraph::reduce_write(DoublingQp *slave_qp, NetMem *local,
                              NetMem *remote, uint16_t num_vectors, uint8_t op,
-                             uint8_t type, bool require_cmpl) {
+                             uint8_t dataType, bool require_cmpl) {
     LambdaInstruction lambda = slave_qp->reduce_write(
-        local, remote, num_vectors, op, type, require_cmpl);
+        local, remote, num_vectors, op, dataType, require_cmpl);
     this->enqueue(lambda);
     QP_PRINT("Add graph operation: DoublingQp  ID='%d' will 'reduce and write' "
              "to peer ID=%d\n",
@@ -83,9 +83,9 @@ void CommGraph::reduce_write(DoublingQp *slave_qp, NetMem *local,
 }
 void CommGraph::reduce_write(LoopbackQp *slave_qp, UmrMem *local,
                              NetMem *remote, uint16_t num_vectors, uint8_t op,
-                             uint8_t type, bool require_cmpl) {
+                             uint8_t dataType, bool require_cmpl) {
     LambdaInstruction lambda = slave_qp->reduce_write(
-        local, remote, num_vectors, op, type, require_cmpl);
+        local, remote, num_vectors, op, dataType, require_cmpl);
     this->enqueue(lambda);
     QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'reduce and write' "
              "to peer ID=%d\n",
@@ -95,9 +95,9 @@ void CommGraph::reduce_write(LoopbackQp *slave_qp, UmrMem *local,
 }
 void CommGraph::reduce_write(LoopbackQp *slave_qp, NetMem *local,
                              NetMem *remote, uint16_t num_vectors, uint8_t op,
-                             uint8_t type, bool require_cmpl) {
+                             uint8_t dataType, bool require_cmpl) {
     LambdaInstruction lambda = slave_qp->reduce_write(
-        local, remote, num_vectors, op, type, require_cmpl);
+        local, remote, num_vectors, op, dataType, require_cmpl);
     this->enqueue(lambda);
     QP_PRINT("Add graph operation: LoopbackQp  ID='%d' will 'reduce and write' "
              "to peer ID=%d\n",

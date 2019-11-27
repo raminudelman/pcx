@@ -29,16 +29,16 @@ class CommGraph {
     void wait(PcxQp *slave_qp, bool wait_scq = false);
 
     void reduce_write(RingQp *slave_qp, NetMem *local, size_t pos,
-                      uint16_t num_vectors, uint8_t op, uint8_t type,
+                      uint16_t num_vectors, uint8_t op, uint8_t dataType,
                       bool require_cmpl);
     void reduce_write(DoublingQp *slave_qp, NetMem *local, NetMem *remote,
-                      uint16_t num_vectors, uint8_t op, uint8_t type,
+                      uint16_t num_vectors, uint8_t op, uint8_t dataType,
                       bool require_cmpl);
     void reduce_write(LoopbackQp *slave_qp, UmrMem *local, NetMem *remote,
-                      uint16_t num_vectors, uint8_t op, uint8_t type,
+                      uint16_t num_vectors, uint8_t op, uint8_t dataType,
                       bool require_cmpl);
     void reduce_write(LoopbackQp *slave_qp, NetMem *local, NetMem *remote,
-                      uint16_t num_vectors, uint8_t op, uint8_t type,
+                      uint16_t num_vectors, uint8_t op, uint8_t dataType,
                       bool require_cmpl);
 
     void write(RingQp *slave_qp, NetMem *local, size_t pos, bool require_cmpl);
