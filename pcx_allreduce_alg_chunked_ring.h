@@ -244,7 +244,7 @@ template <typename T> class PcxAllreduceChunkedRing {
                 sess->send_credit(left);  // Notifying the left rank that it can
                                           // continue sending new data
                 sess->wait(right, false); // Waiting for the rank from the right
-                                          // to realse a credit that mean that
+                                          // to realese a credit that mean that
                                           // our rank can continue sending the
                                           // data to the right.
                 // Initialize number of credits

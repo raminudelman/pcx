@@ -93,7 +93,9 @@ struct mlx5_wqe_coredirect_seg {
     uint32_t number;
 };
 
-struct mlx5_wqe_vectorcalc_seg {
+struct mlx5_wqe_vectorcalc_seg { // PRM v0.49 External has the same format
+                                 // (except for adding vector_key and
+                                 // vector_address fields in the end)
     uint32_t calc_operation;
     uint32_t rsvd1[2];
     uint32_t options;
