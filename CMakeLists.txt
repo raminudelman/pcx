@@ -1,0 +1,223 @@
+################################################################################
+####                           gloo/CMakeLists.txt                          ####
+################################################################################
+
+cmake_minimum_required(VERSION 2.6)
+ 
+project(pcx CXX C)
+
+#set (CMAKE_INSTALL_PREFIX ./rami_my_install) # TODO: Need to delete
+
+set(PCX_VERSION_MAJOR 0)
+set(PCX_VERSION_MINOR 1)
+set(PCX_VERSION_PATCH 0)
+set(PCX_VERSION
+    "${PCX_VERSION_MAJOR}.${PCX_VERSION_MINOR}.${PCX_VERSION_PATCH}")
+
+
+# Local CMake modules
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules/")
+
+# Build target options
+option(BUILD_TEST "Build test binary (requires gtest)" OFF)
+
+# Build benchmark options 
+# TODO: Need to actually build the benchmark before using this option
+option(BUILD_BENCHMARK "Build benchmark binary" OFF)
+
+# Set default build type
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "Build type not set -- defaulting to Release")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+option(DEBUG "Add useful prints during debug" OFF)
+
+# Add install targets by default (override from parent project)
+set(PCX_INSTALL ON CACHE BOOL "")
+mark_as_advanced(PCX_INSTALL)
+
+# Build shared or static libraries (override from parent project)
+if(BUILD_SHARED_LIBS)
+  set(PCX_STATIC_OR_SHARED SHARED CACHE STRING "")
+else()
+  set(PCX_STATIC_OR_SHARED STATIC CACHE STRING "")
+endif()
+mark_as_advanced(PCX_STATIC_OR_SHARED)
+
+################################################################################
+####                      gloo/cmake/Dependencies.cmake                     ####
+################################################################################
+
+set(pcx_DEPENDENCY_LIBS "")
+
+# Configure path to modules (for find_package)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/CMakeModules/")
+
+# Find the ibverbs library
+find_package(ibverbs REQUIRED)
+if(IBVERBS_FOUND)
+  include_directories(SYSTEM ${IBVERBS_INCLUDE_DIRS})
+  list(APPEND pcx_DEPENDENCY_LIBS ${IBVERBS_LIBRARIES})
+  message(INFO " ibverbs lib: ${IBVERBS_LIBRARIES} ibverbs include: ${IBVERBS_INCLUDE_DIRS}  ")
+else()
+  message(FATAL "Cannot use PCX without ibverbs library")
+endif()
+
+# Find the mlx5 library
+find_package(mlx5 REQUIRED)
+if(MLX5_FOUND)
+  include_directories(SYSTEM ${MLX5_INCLUDE_DIRS})
+  list(APPEND pcx_DEPENDENCY_LIBS ${MLX5_LIBRARIES} )
+  message(INFO " mlx5 lib: ${MLX5_LIBRARIES} mlx5 include: ${MLX5_INCLUDE_DIRS}  ")
+else()
+  message(FATAL "Cannot use PCX without mlx5 library")
+endif()
+
+# TODO: Need to add verbs_exp.h as a dependency for PCX until this dependency is removed. 
+
+# Make sure we can find GoogleTest if building the tests
+if(BUILD_TEST)
+  # If the gtest target is already defined, we assume upstream knows
+  # what they are doing and the version is new enough.
+  if(NOT TARGET gtest)
+    find_package(GTest REQUIRED)
+    if(NOT GTEST_FOUND)
+      message(FATAL_ERROR "Could not find googletest; cannot compile tests")
+    endif()
+    add_library(gtest INTERFACE)
+    target_include_directories(gtest INTERFACE ${GTEST_INCLUDE_DIRS})
+    target_link_libraries(gtest INTERFACE ${GTEST_LIBRARIES})
+  endif()
+endif()
+
+# GTest Depends on pthreads and PCX uses it // TODO: Check if GTest needs it and if PCX needs it
+list(APPEND pcx_DEPENDENCY_LIBS pthread)
+
+
+################################################################################
+####                      gloo/CMakeLists.txt - Cont                        ####
+################################################################################
+
+# Use project root as default include directory
+include_directories(${PROJECT_SOURCE_DIR})
+include_directories(${PROJECT_BINARY_DIR})
+
+# Compiler flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC") # TODO: Check which flags are needed.
+
+
+################################################################################
+####                      gloo/gloo/CMakeLists.txt - Cont                        ####
+################################################################################
+
+# PCX_SRCS is the list of source files that we need to build libpcx.
+set(PCX_SRCS)
+
+# PCX_HDRS is the list of header files that we need to install.
+set(PCX_HDRS)
+
+# Compiled sources in root directory
+set(SRC_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src")
+list(APPEND PCX_SRCS
+  "${SRC_PATH}/pcx_verbs_ctx.cc"
+  "${SRC_PATH}/pcx_ring_qp.cc"
+  "${SRC_PATH}/pcx_qps.cc"
+  "${SRC_PATH}/pcx_king_qp.cc"
+  "${SRC_PATH}/pcx_allreduce_alg_common.cc"
+  "${SRC_PATH}/pcx_mem.cc"
+  "${SRC_PATH}/pcx_comm_graph.cc"
+  "${SRC_PATH}/pcx_dv_mgr.cc"
+  )
+
+set(HEADERS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/include")
+list(APPEND PCX_HDRS
+  "${HEADERS_PATH}/pcx_verbs_ctx.h"
+  "${HEADERS_PATH}/pcx_udma_barrier.h"
+  "${HEADERS_PATH}/pcx_ring_qp.h"
+  "${HEADERS_PATH}/pcx_qps.h"
+  "${HEADERS_PATH}/pcx_mem.h"
+  "${HEADERS_PATH}/pcx_king_qp.h"
+  "${HEADERS_PATH}/pcx_allreduce_alg_king.h"
+  "${HEADERS_PATH}/pcx_allreduce_alg_common.h"
+  "${HEADERS_PATH}/pcx_comm_graph.h"
+  "${HEADERS_PATH}/pcx_dv_mgr.h"
+  "${HEADERS_PATH}/pcx_allreduce_alg_chunked_ring.h"
+  )
+
+
+# Enable the following to get a list of source files
+# TODO: This is only for debug the cmake build process. 
+#       How to add a flag that controls this print?
+if(1) 
+  message(INFO " Sources: ")
+  foreach(pcx_src_file ${PCX_SRCS})
+    message(INFO "  " ${pcx_src_file})
+  endforeach()
+  message(INFO " Headers: ")
+  foreach(pcx_hdr_file ${PCX_HDRS})
+    message(INFO "  " ${pcx_hdr_file})
+  endforeach()
+endif()
+
+set(PCX_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+message(INFO " PCX Install information: ")
+message(INFO "   PCX_INSTALL_PREFIX=" ${PCX_INSTALL_PREFIX})
+message(INFO "   PCX_INSTALL=" ${PCX_INSTALL})
+
+# Write configuration header.
+# Set variables so macros have PCX_ prefix.
+set(PCX_DEBUG ${DEBUG})
+configure_file(cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
+
+# Create a shared or static library
+add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
+
+# Link to the 'pcx' library that was just created all the libraries
+# that are defined as dependencies
+target_link_libraries(pcx PRIVATE ${pcx_DEPENDENCY_LIBS}) # TODO: Consider using PUBLIC instead of PRIVATE
+
+# Add "include" directory for all the header files of the library
+target_include_directories(pcx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Install if necessary.
+# If the PCX build is included from another project's build, it may
+# want to statically link with PCX and not install any artifacts.
+if(PCX_INSTALL)
+  message(INFO " Installing PCX into the prefix:" ${PCX_INSTALL_PREFIX})
+  install(TARGETS pcx 
+          EXPORT PcxTargets
+          DESTINATION ${PCX_INSTALL_PREFIX}/lib)
+  message(INFO " Installing " ${CMAKE_CURRENT_BINARY_DIR} "/pcx_config.h into: " ${PCX_INSTALL_PREFIX} "/include/pcx")
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h
+          DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx)
+  foreach(HEADER ${PCX_HDRS})
+    string(REGEX MATCH "(.*)[/\\]" DIR ${HEADER})
+    string(REGEX REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "pcx" DIR ${DIR})
+    message(INFO " Installing " ${HEADER} " into: " ${PCX_INSTALL_PREFIX}/include/${DIR})
+    install(FILES ${HEADER} 
+            DESTINATION ${PCX_INSTALL_PREFIX}/include/${DIR})
+  endforeach()
+endif()
+
+# Recurse into test project directory
+if(BUILD_TEST)
+  #add_subdirectory(test) # TODO: Add test directory
+endif()
+
+# Recurse into test project directory
+if(BUILD_BENCHMARK)
+  #add_subdirectory(benchmark) # TODO: Add benchmark directory
+endif()
+
+
+################################################################################
+####                      gloo/CMakeLists.txt - Cont                        ####
+################################################################################
+
+if(PCX_INSTALL)
+  install(EXPORT PcxTargets 
+          DESTINATION ${PCX_INSTALL_PREFIX}/share/cmake/pcx
+          FILE PcxTargets.cmake
+          COMPONENT dev)
+endif()

@@ -1,0 +1,20 @@
+// TODO: Add license
+
+#pragma once
+
+#define PCX_VERSION_MAJOR @PCX_VERSION_MAJOR@
+#define PCX_VERSION_MINOR @PCX_VERSION_MINOR@
+#define PCX_VERSION_PATCH @PCX_VERSION_PATCH@
+
+static_assert(
+    PCX_VERSION_MINOR < 100,
+    "Programming error: you set a minor version that is too big.");
+static_assert(
+    PCX_VERSION_PATCH < 100,
+    "Programming error: you set a patch version that is too big.");
+
+#define PCX_VERSION                                        \
+  (PCX_VERSION_MAJOR * 10000 + PCX_VERSION_MINOR * 100 +   \
+   PCX_VERSION_PATCH)
+
+#cmakedefine PCX_DEBUG
