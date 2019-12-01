@@ -32,7 +32,6 @@
 #pragma once
 
 #include "pcx_mem.h"
-#include "pcx_udma_barrier.h"
 
 extern "C" {
 #include <cstring> // TODO: This include should be moved to mlx5dv. mlx5dv uses memcpy function without including propely the library!
@@ -47,8 +46,15 @@ extern "C" {
 #include <string.h>
 #include <unistd.h>
 
-#define memory_store_fence() asm volatile("" ::: "memory")
-#define pci_store_fence() asm volatile("sfence" ::: "memory")
+#if defined(__x86_64__)
+#define pcx_device_barrier() asm volatile("" ::: "memory")
+#elif defined(__aarch64__)
+#define pcx_device_barrier() asm volatile("dsb st" ::: "memory");
+#elif defined(__PPC64__)
+#define pcx_device_barrier() asm volatile("sync" ::: "memory")
+#endif
+
+#define pcx_pci_store_fence() asm volatile("sfence" ::: "memory")
 
 #define CE 0 // TODO: Why is this value is the correct value?
 

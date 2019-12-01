@@ -288,11 +288,11 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
 void qp_ctx::db() {
     exe_cnt += (this->wqes);
     dbseg.opmod_idx_opcode = htobe32(exe_cnt << 8);
-    udma_to_device_barrier();
+    pcx_device_barrier();
     qp->dbrec[1] = htobe32(exe_cnt);
-    pci_store_fence();
+    pcx_pci_store_fence();
     *(uint64_t *)qp->bf.reg = *(uint64_t *)&(dbseg);
-    pci_store_fence();
+    pcx_pci_store_fence();
 }
 
 void qp_ctx::send_credit() {

@@ -133,7 +133,6 @@ list(APPEND PCX_SRCS
 set(HEADERS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/include")
 list(APPEND PCX_HDRS
   "${HEADERS_PATH}/pcx_verbs_ctx.h"
-  "${HEADERS_PATH}/pcx_udma_barrier.h"
   "${HEADERS_PATH}/pcx_ring_qp.h"
   "${HEADERS_PATH}/pcx_qps.h"
   "${HEADERS_PATH}/pcx_mem.h"
