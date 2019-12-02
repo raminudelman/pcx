@@ -6,17 +6,11 @@ cmake_minimum_required(VERSION 2.6)
  
 project(pcx CXX C)
 
-#set (CMAKE_INSTALL_PREFIX ./rami_my_install) # TODO: Need to delete
-
 set(PCX_VERSION_MAJOR 0)
 set(PCX_VERSION_MINOR 1)
 set(PCX_VERSION_PATCH 0)
 set(PCX_VERSION
     "${PCX_VERSION_MAJOR}.${PCX_VERSION_MINOR}.${PCX_VERSION_PATCH}")
-
-
-# Local CMake modules
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules/")
 
 # Build target options
 option(BUILD_TEST "Build test binary (requires gtest)" OFF)
@@ -51,11 +45,13 @@ mark_as_advanced(PCX_STATIC_OR_SHARED)
 
 set(pcx_DEPENDENCY_LIBS "")
 
+# Local CMake modules
 # Configure path to modules (for find_package)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/CMakeModules/")
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
 
 # Find the ibverbs library
 find_package(ibverbs REQUIRED)
+# If ibverbs package was found, the IBVERBS_FOUND is set by CMake
 if(IBVERBS_FOUND)
   include_directories(SYSTEM ${IBVERBS_INCLUDE_DIRS})
   list(APPEND pcx_DEPENDENCY_LIBS ${IBVERBS_LIBRARIES})
@@ -65,6 +61,7 @@ else()
 endif()
 
 # Find the mlx5 library
+# If mlx5 package was found, the MLX5_FOUND is set by CMake
 find_package(mlx5 REQUIRED)
 if(MLX5_FOUND)
   include_directories(SYSTEM ${MLX5_INCLUDE_DIRS})
@@ -78,8 +75,11 @@ endif()
 
 # Make sure we can find GoogleTest if building the tests
 if(BUILD_TEST)
-  # If the gtest target is already defined, we assume upstream knows
-  # what they are doing and the version is new enough.
+  # If the gtest target is already defined, we assume that the project that
+  # includes PCX knows what they are doing and the version of gtest is new 
+  # enough so there is no need for PCX to find gtest package. On the other hand
+  # if the including project of PCX did not define gtest as a target, then PCX
+  # will define it itself.
   if(NOT TARGET gtest)
     find_package(GTest REQUIRED)
     if(NOT GTEST_FOUND)
@@ -91,21 +91,23 @@ if(BUILD_TEST)
   endif()
 endif()
 
-# GTest Depends on pthreads and PCX uses it // TODO: Check if GTest needs it and if PCX needs it
+# GTest Depends on pthreads and PCX uses it // TODO: Check if GTest needs pthread and if PCX needs pthread
 list(APPEND pcx_DEPENDENCY_LIBS pthread)
-
 
 ################################################################################
 ####                      gloo/CMakeLists.txt - Cont                        ####
 ################################################################################
 
 # Use project root as default include directory
-include_directories(${PROJECT_SOURCE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/include/pcx)
+
+# Add the current binary directory for the generated config file (i.e. pcx_config.h)
 include_directories(${PROJECT_BINARY_DIR})
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC") # TODO: Check which flags are needed.
-
+# 1. Support c++11 standard
+# 2. Generate position-independent code (PIC)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
 
 ################################################################################
 ####                      gloo/gloo/CMakeLists.txt - Cont                        ####
@@ -130,7 +132,7 @@ list(APPEND PCX_SRCS
   "${SRC_PATH}/pcx_dv_mgr.cc"
   )
 
-set(HEADERS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(HEADERS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/include/pcx")
 list(APPEND PCX_HDRS
   "${HEADERS_PATH}/pcx_verbs_ctx.h"
   "${HEADERS_PATH}/pcx_ring_qp.h"
@@ -159,11 +161,6 @@ if(1)
   endforeach()
 endif()
 
-set(PCX_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
-message(INFO " PCX Install information: ")
-message(INFO "   PCX_INSTALL_PREFIX=" ${PCX_INSTALL_PREFIX})
-message(INFO "   PCX_INSTALL=" ${PCX_INSTALL})
-
 # Write configuration header.
 # Set variables so macros have PCX_ prefix.
 set(PCX_DEBUG ${DEBUG})
@@ -177,16 +174,29 @@ add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
 target_link_libraries(pcx PRIVATE ${pcx_DEPENDENCY_LIBS}) # TODO: Consider using PUBLIC instead of PRIVATE
 
 # Add "include" directory for all the header files of the library
-target_include_directories(pcx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(pcx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/pcx) # What is the PRIVATE meaning here? 
+
+#target_include_directories(pcx PUBLIC
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/pcx> # For headers when building
+#  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for pcx_config.h when building
+#  $<INSTALL_INTERFACE:include/pcx/include/pcx>  # <prefix>/include/pcx
+#)
+
+
+set(PCX_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+message(INFO " PCX Install information: ")
+message(INFO "   PCX_INSTALL_PREFIX=" ${PCX_INSTALL_PREFIX})
+message(INFO "   PCX_INSTALL=" ${PCX_INSTALL})
 
 # Install if necessary.
 # If the PCX build is included from another project's build, it may
-# want to statically link with PCX and not install any artifacts.
+# want to statically link with PCX and not install any artifacts, which in
+# this case the PCX_INSTALL flag will be 'FALSE'.
 if(PCX_INSTALL)
   message(INFO " Installing PCX into the prefix:" ${PCX_INSTALL_PREFIX})
   install(TARGETS pcx 
           EXPORT PcxTargets
-          DESTINATION ${PCX_INSTALL_PREFIX}/lib)
+          DESTINATION ${PCX_INSTALL_PREFIX}/lib/pcx)
   message(INFO " Installing " ${CMAKE_CURRENT_BINARY_DIR} "/pcx_config.h into: " ${PCX_INSTALL_PREFIX} "/include/pcx")
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h
           DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx)
@@ -201,7 +211,7 @@ endif()
 
 # Recurse into test project directory
 if(BUILD_TEST)
-  #add_subdirectory(test) # TODO: Add test directory
+  add_subdirectory(tests)
 endif()
 
 # Recurse into test project directory
@@ -216,7 +226,7 @@ endif()
 
 if(PCX_INSTALL)
   install(EXPORT PcxTargets 
-          DESTINATION ${PCX_INSTALL_PREFIX}/share/cmake/pcx
+          DESTINATION ${PCX_INSTALL_PREFIX}/share/cmake/PCX
           FILE PcxTargets.cmake
           COMPONENT dev)
 endif()
