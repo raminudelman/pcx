@@ -1,10 +1,7 @@
-################################################################################
-####                           gloo/CMakeLists.txt                          ####
-################################################################################
-
 cmake_minimum_required(VERSION 2.6)
  
-project(pcx CXX C)
+# The project() command sets variable PROJECT_SOURCE_DIR and PCX_SOURCE_DIR
+project(PCX CXX C)
 
 set(PCX_VERSION_MAJOR 0)
 set(PCX_VERSION_MINOR 1)
@@ -12,8 +9,16 @@ set(PCX_VERSION_PATCH 0)
 set(PCX_VERSION
     "${PCX_VERSION_MAJOR}.${PCX_VERSION_MINOR}.${PCX_VERSION_PATCH}")
 
+################################################################################
+####                      Options And Configuration                         ####
+################################################################################
+
+# Build PCX with debug prints
+option(PCX_DEBUG "Build PCX with debug prints" OFF)
+option(DEBUG     "Build PCX with debug prints" OFF)
+
 # Build target options
-option(BUILD_TEST "Build test binary (requires gtest)" OFF)
+option(BUILD_TEST "Build test binary (requires gtest package)" OFF)
 
 # Build benchmark options 
 # TODO: Need to actually build the benchmark before using this option
@@ -21,14 +26,12 @@ option(BUILD_BENCHMARK "Build benchmark binary" OFF)
 
 # Set default build type
 if(NOT CMAKE_BUILD_TYPE)
-  message(STATUS "Build type not set -- defaulting to Release")
+  message(STATUS "Build type not set. Defaulting to 'Release'")
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-option(DEBUG "Add useful prints during debug" OFF)
-
 # Add install targets by default (override from parent project)
-set(PCX_INSTALL ON CACHE BOOL "")
+set(PCX_INSTALL ON CACHE BOOL "Defines if to install PCX into the file system")
 mark_as_advanced(PCX_INSTALL)
 
 # Build shared or static libraries (override from parent project)
@@ -40,7 +43,7 @@ endif()
 mark_as_advanced(PCX_STATIC_OR_SHARED)
 
 ################################################################################
-####                      gloo/cmake/Dependencies.cmake                     ####
+####                              Dependencies                              ####
 ################################################################################
 
 set(pcx_DEPENDENCY_LIBS "")
@@ -95,13 +98,14 @@ endif()
 list(APPEND pcx_DEPENDENCY_LIBS pthread)
 
 ################################################################################
-####                      gloo/CMakeLists.txt - Cont                        ####
+####                                Compiler                                ####
 ################################################################################
 
-# Use project root as default include directory
+# Use project root as default include directory for the compiler
 include_directories(${PROJECT_SOURCE_DIR}/include/pcx)
 
-# Add the current binary directory for the generated config file (i.e. pcx_config.h)
+# Add the current binary directory for the generated config file 
+# (i.e. pcx_config.h)
 include_directories(${PROJECT_BINARY_DIR})
 
 # Compiler flags
@@ -110,7 +114,7 @@ include_directories(${PROJECT_BINARY_DIR})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
 
 ################################################################################
-####                      gloo/gloo/CMakeLists.txt - Cont                        ####
+####                             Source Files                               ####
 ################################################################################
 
 # PCX_SRCS is the list of source files that we need to build libpcx.
@@ -132,7 +136,7 @@ list(APPEND PCX_SRCS
   "${SRC_PATH}/pcx_dv_mgr.cc"
   )
 
-set(HEADERS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/include/pcx")
+set(HEADERS_PATH "${PROJECT_SOURCE_DIR}/include/pcx")
 list(APPEND PCX_HDRS
   "${HEADERS_PATH}/pcx_verbs_ctx.h"
   "${HEADERS_PATH}/pcx_ring_qp.h"
@@ -161,10 +165,11 @@ if(1)
   endforeach()
 endif()
 
-# Write configuration header.
-# Set variables so macros have PCX_ prefix.
+# Before configuring the file, make sure all '#define's will have PCX prefix 
 set(PCX_DEBUG ${DEBUG})
-configure_file(cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
+
+# Write configuration header.
+configure_file(src/cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
 
 # Create a shared or static library
 add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
@@ -182,6 +187,23 @@ target_include_directories(pcx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/pcx) 
 #  $<INSTALL_INTERFACE:include/pcx/include/pcx>  # <prefix>/include/pcx
 #)
 
+################################################################################
+####                             Other Files                                ####
+################################################################################
+
+# Recurse into test project directory
+if(BUILD_TEST)
+  add_subdirectory(tests)
+endif()
+
+# Recurse into test project directory
+if(BUILD_BENCHMARK)
+  #add_subdirectory(benchmark) # TODO: Add benchmark directory
+endif()
+
+################################################################################
+####                             Installation                               ####
+################################################################################
 
 set(PCX_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 message(INFO " PCX Install information: ")
@@ -208,21 +230,6 @@ if(PCX_INSTALL)
             DESTINATION ${PCX_INSTALL_PREFIX}/include/${DIR})
   endforeach()
 endif()
-
-# Recurse into test project directory
-if(BUILD_TEST)
-  add_subdirectory(tests)
-endif()
-
-# Recurse into test project directory
-if(BUILD_BENCHMARK)
-  #add_subdirectory(benchmark) # TODO: Add benchmark directory
-endif()
-
-
-################################################################################
-####                      gloo/CMakeLists.txt - Cont                        ####
-################################################################################
 
 if(PCX_INSTALL)
   install(EXPORT PcxTargets 
