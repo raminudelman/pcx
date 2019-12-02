@@ -117,6 +117,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC")
 ####                             Source Files                               ####
 ################################################################################
 
+# TODO: Consider moving this code to ${PROJECT_SOURCE_DIR}/src/CMakeLists.txt
+
 # PCX_SRCS is the list of source files that we need to build libpcx.
 set(PCX_SRCS)
 
