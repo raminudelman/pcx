@@ -23,7 +23,7 @@
 #define PCX_KING_PRINT(args...)
 #endif
 
-#define KING_PIPELINE_DEPTH 1
+#define PCX_KING_PIPELINE_DEPTH 1
 
 // Performs data exchange between peers in the algorithm.
 // Sends data of size 'size' to 'peer' from 'send_buf' and
@@ -134,7 +134,7 @@ template <typename T> class PcxAllreduceChunkedKingAlg {
         while ((1 << ++step_count) < contextSize_)
             ;
 
-        pipeline_ = KING_PIPELINE_DEPTH;
+        pipeline_ = PCX_KING_PIPELINE_DEPTH;
         while (step_count % pipeline_) {
             --pipeline_;
         }

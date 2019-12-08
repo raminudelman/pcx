@@ -25,7 +25,7 @@
 #define PCX_RING_PRINT(args...)
 #endif
 
-#define RING_PIPELINE_DEPTH 1 // TODO: Add PCX_ prefix to this defined variable
+#define PCX_RING_PIPELINE_DEPTH 1
 
 // Performs data exchange between peers in ring.
 // Sends data of size 'size' to 'peer' from 'send_buf' and
@@ -166,7 +166,7 @@ template <typename T> class PcxAllreduceChunkedRing {
         int temp_type =
             PCX_MEMORY_TYPE_MEMIC; // TODO: Make it controlable by ENV variable.
 
-        pipeline_ = RING_PIPELINE_DEPTH;
+        pipeline_ = PCX_RING_PIPELINE_DEPTH;
 
         // Find the maximal pipeline which devides the communicator
         // size without a reminder
@@ -510,8 +510,8 @@ template <typename T> class PcxAllreduceChunkedRing {
     // that a peer rank (in the ring) can send to this rank without waiting for
     // the rank to notify that the buffers used to recieve the data can be
     // reused.
-    int pipeline_ = RING_PIPELINE_DEPTH; // TODO: Consider converting into
-                                         // 'static constexpr int'
+    int pipeline_ = PCX_RING_PIPELINE_DEPTH; // TODO: Consider converting into
+                                             // 'static constexpr int'
 
     // The size of each chunk that will be moved through
     // ring throughout the run of the algorithm
