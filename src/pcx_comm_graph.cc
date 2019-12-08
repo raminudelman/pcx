@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2019-present, Mellanox Technologies Ltd. 
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 #include "pcx_comm_graph.h"
 
 CommGraph::CommGraph() : mqp(NULL), iq() {}
