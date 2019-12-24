@@ -87,7 +87,10 @@ struct mlx5_wqe_vectorcalc_seg { // PRM v0.49 External has the same format
     uint64_t mat_addr;
 };
 
-struct mlx5_db_seg {
+// Blue Flame register, holds the first 8 bytes of the WQE (that contains post 
+// counter, DS and QP/SQ number) to offset 0 of the blue flame register (See 
+// PRM Table 42, "General - Ctrl Segment Format").
+struct mlx5_bf_reg {
     __be32 opmod_idx_opcode;
     __be32 qpn_ds;
 };
@@ -226,12 +229,12 @@ class qp_ctx {
     int phase;
 
     // Holds the current index of the WQE that should be executed by the NIC.
-    uint32_t exe_cnt;
+    uint32_t current_wqe_index_to_exec;
 
     RearmTasks tasks;
 
-    // DoorBell segment
-    struct mlx5_db_seg dbseg;
+    // Blue Flame register
+    struct mlx5_bf_reg bf_reg;
 
     // The number of WQEs that are expected to be executed
     // during a single collective operation

@@ -132,8 +132,8 @@ qp_ctx::qp_ctx(
     // pingpong_context
     ret = mlx5dv_init_obj(&dv_obj, MLX5DV_OBJ_QP | MLX5DV_OBJ_CQ);
     this->write_cnt = 0;
-    this->exe_cnt = 0;
-    this->dbseg.qpn_ds = htobe32(qpn << 8);
+    this->current_wqe_index_to_exec = 0;
+    this->bf_reg.qpn_ds = htobe32(qpn << 8);
     this->phase = 0;
     this->cmpl_cnt = 0;
     this->pair = this; // default pair for qp will be itself.
@@ -262,12 +262,25 @@ int qp_ctx::poll() { // TODO: Change the name of this function to: is_finished()
 }
 
 void qp_ctx::db() {
-    exe_cnt += (this->wqes);
-    dbseg.opmod_idx_opcode = htobe32(exe_cnt << 8);
+    current_wqe_index_to_exec += (this->wqes);
+    //  First 4 bytes in the "Ctrl Segment Format" (See PRM Table 42, "General
+    // - Ctrl Segment Format")
+    bf_reg.opmod_idx_opcode = htobe32(current_wqe_index_to_exec << 8); 
+
     pcx_device_barrier();
-    qp->dbrec[1] = htobe32(exe_cnt);
+    // Ring the Doorbell
+    qp->dbrec[1] = htobe32(current_wqe_index_to_exec); 
     pcx_pci_store_fence();
-    *(uint64_t *)qp->bf.reg = *(uint64_t *)&(dbseg);
+
+    // Send DoorBells are rung in blue flame registers by writing the first 8 
+    // bytes of the WQE (that contains post counter, DS and QP/SQ number) to 
+    // offset 0 of the blue flame register (See PRM Table 42, "General - Ctrl 
+    // Segment Format"). This post counter points to the beginning of the WQE 
+    // to be executed. Note that this is different than the counter in the DB 
+    // record which points to the next empty WQEBB. Send DBs of a QP/SQ can be 
+    // rung on specific Blue Flame registers and cannot be interleaved on
+    // multiple Blue Flame registers.
+    *(uint64_t *)qp->bf.reg = *(uint64_t *)&(bf_reg);
     pcx_pci_store_fence();
 }
 
