@@ -181,13 +181,11 @@ add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
 target_link_libraries(pcx PRIVATE ${pcx_DEPENDENCY_LIBS}) # TODO: Consider using PUBLIC instead of PRIVATE
 
 # Add "include" directory for all the header files of the library
-target_include_directories(pcx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/pcx) # What is the PRIVATE meaning here? 
-
-#target_include_directories(pcx PUBLIC
-#  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/pcx> # For headers when building
-#  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for pcx_config.h when building
-#  $<INSTALL_INTERFACE:include/pcx/include/pcx>  # <prefix>/include/pcx
-#)
+target_include_directories(pcx PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/pcx> # For headers when building
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}> # for pcx_config.h when building
+  $<INSTALL_INTERFACE:include/pcx/include/pcx>  # <prefix>/include/pcx
+)
 
 ################################################################################
 ####                             Other Files                                ####
