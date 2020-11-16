@@ -161,7 +161,7 @@ endif()
 
 # Write configuration header.
 message(INFO " PCX_DEBUG=" ${PCX_DEBUG})
-configure_file(include/cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
+configure_file(include/pcx/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
 
 # Create a shared or static library
 add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
@@ -210,9 +210,10 @@ if(PCX_INSTALL)
   install(TARGETS pcx 
           EXPORT PcxTargets
           DESTINATION ${PCX_INSTALL_PREFIX}/lib/pcx)
+  
   message(INFO " Installing " ${CMAKE_CURRENT_BINARY_DIR} "/pcx_config.h into: " ${PCX_INSTALL_PREFIX} "/include/pcx/include/pcx")
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h
-          DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx/include/pcx)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx/include/pcx)
+
   foreach(HEADER ${PCX_HDRS})
     string(REGEX MATCH "(.*)[/\\]" DIR ${HEADER})
     string(REGEX REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "pcx" DIR ${DIR})

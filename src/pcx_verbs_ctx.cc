@@ -62,9 +62,19 @@ VerbCtx::~VerbCtx() {
 
 // VerbCtx::VerbCtx(char *ib_devname){
 VerbCtx::VerbCtx() {
+    #ifdef PCX_DEBUG
+        fprintf(stderr,"%s\n", "PCX_DEBUG is defined");
+    #else
+        fprintf(stderr,"%s\n", "PCX_DEBUG is NOT defined");
+    #endif
+    #ifdef DEBUG
+        fprintf(stderr,"%s\n", "DEBUG is defined");
+    #else
+        fprintf(stderr,"%s\n", "DEBUG is NOT defined");
+    #endif
 
     if (safeFlag) {
-        fprintf(stderr, "ERROR - verb context initiated twice!");
+        PRINTF("ERROR - verb context initiated twice!");
         PERR(VerbsCtxInitiatedTwice); // throw "ERROR - verb context initiated
                                       // twice!";
     }
@@ -111,11 +121,14 @@ VerbCtx::VerbCtx() {
 
     PRINT(ibv_get_device_name(ib_dev));
     this->context = ibv_open_device(ib_dev);
-    ibv_free_device_list(dev_list);
+
     if (!this->context) {
         PERR(FailedToOpenIbDevice); // throw "Couldn't get context (failed to
                                     // open an IB device)";
     }
+    PRINTF("Opened IB device: %s \n", ibv_get_device_name(ib_dev));
+
+    ibv_free_device_list(dev_list);
 
     this->pd = ibv_alloc_pd(this->context);
     if (!this->pd) {
@@ -123,12 +136,17 @@ VerbCtx::VerbCtx() {
         goto clean_comp_channel;
     }
 
+    PRINTF("PD was allocated\n");
+
     this->channel = NULL; // TODO
 
     this->umr_cq = ibv_create_cq(this->context, CX_SIZE, NULL, NULL, 0);
     if (!this->umr_cq) {
         PERR(CouldNotCreateCQ); // throw "Couldn't create CQ";
     }
+
+    PRINTF("UMR CQ was created\n");
+
     memset(&this->attrs, 0, sizeof(this->attrs));
     this->attrs.comp_mask = IBV_EXP_DEVICE_ATTR_UMR;
     this->attrs.comp_mask |= IBV_EXP_DEVICE_ATTR_MAX_DM_SIZE;
@@ -136,11 +154,14 @@ VerbCtx::VerbCtx() {
     if (ibv_exp_query_device(this->context, &this->attrs)) {
         PERR(CouldNotQueryDevice); // throw "Couldn't query device attributes";
     }
+    PRINTF("Query device finished \n");
 
     if (!(this->attrs.comp_mask & IBV_EXP_DEVICE_ATTR_MAX_DM_SIZE) ||
         !(this->attrs.max_dm_size)) {
+        PRINTF("Not using MEMIC as device does not support it\n");
         this->maxMemic = 0;
     } else {
+        PRINTF("Max DM size: %d \n", this->maxMemic);
         this->maxMemic = this->attrs.max_dm_size;
     }
 
@@ -160,11 +181,12 @@ VerbCtx::VerbCtx() {
         attr.cap.max_send_sge = 1;
         attr.cap.max_recv_sge = 0;
         attr.max_inl_send_klms = MAX_LOCAL_VECTOR_SIZE_TO_REDUCE;
-
+        PRINTF("UMR QP start creation\n");
         this->umr_qp = ibv_exp_create_qp(this->context, &attr);
         if (!this->umr_qp) {
             PERR(CouldNotCreateUmrQP); // throw("Couldn't create UMR QP");
         }
+        PRINTF("UMR QP was created\n");
     }
 
     {
@@ -185,6 +207,8 @@ VerbCtx::VerbCtx() {
         rc_qp_get_addr(this->umr_qp, &my_addr);
         rc_qp_connect(&my_addr, this->umr_qp);
     }
+
+    PRINTF("Created context\n");
 
     return; // SUCCESS!
 
@@ -235,6 +259,8 @@ int VerbCtx::register_dm(size_t length, uint64_t access_permissions,
     if (!(*mr)) {
         PERR(ExpRegMrFailed)
     }
+    PRINTF("DM was allocated with size %d\n", length);
+    return 0;
 }
 
 int VerbCtx::register_umr(std::vector<PcxMemRegion *> &mem_vec,
@@ -392,7 +418,7 @@ struct ibv_qp *VerbCtx::create_coredirect_master_qp(struct ibv_cq *cq,
         attr.ah_attr.port_num = 1;
 
         if (ibv_query_gid(this->context, 1, GID_INDEX, &gid)) {
-            fprintf(stderr, "can't read sgid of index %d\n", GID_INDEX);
+            PRINTF("can't read sgid of index %d\n", GID_INDEX);
             // PERR(CantReadsGid);
         }
 
@@ -503,7 +529,7 @@ struct ibv_cq *VerbCtx::create_coredirect_cq(int cqe, void *cq_context,
 int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr) {
     struct ibv_port_attr attr;
     if (ibv_query_port(qp->context, 1, &attr)) {
-        fprintf(stderr, "Couldn't get port info\n");
+        PRINTF("Couldn't get port info\n");
         return 1; // TODO: indicate error?
     }
 
@@ -512,7 +538,7 @@ int rc_qp_get_addr(struct ibv_qp *qp, peer_addr_t *addr) {
     addr->psn = 0x1234;
 
     if (ibv_query_gid(qp->context, 1, GID_INDEX, &addr->gid)) {
-        fprintf(stderr, "can't read sgid of index %d\n", GID_INDEX);
+        PRINTF("can't read sgid of index %d\n", GID_INDEX);
         // PERR(CantReadsGid);
     }
 }
@@ -540,7 +566,7 @@ int rc_qp_connect(peer_addr_t *addr, struct ibv_qp *qp) {
                             IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
                             IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
     if (res) {
-        fprintf(stderr, "Failed to modify QP to RTR. reason: %d\n", res);
+        PRINTF("Failed to modify QP to RTR. reason: %d\n", res);
         PERR(CouldNotModifyQpToRTR); // throw "a";
                                      // PERR(QpFailedRTR);
     }
