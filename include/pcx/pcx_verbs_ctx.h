@@ -8,6 +8,12 @@
 
 #pragma once
 
+// TODO: Instead of declaring PCX_DEBUG manually, need to include the 
+// pcx_config.h. Need to understand in CMake where to install pcx_config.h so 
+// it could be included properly
+#define PCX_DEBUG
+//#include "pcx_config.h"
+
 extern "C" {
 // Used for creating QPs/CQs.
 #include <infiniband/verbs.h>
@@ -61,7 +67,7 @@ extern "C" {
 #define PERR(exp) throw PCX_ERR_##exp();
 #define RES_ERR(exp, val) throw PCX_ERR_##exp(val);
 
-#ifdef DEBUG
+#ifdef PCX_DEBUG
 #define PRINT(x) fprintf(stderr, "%s\n", x);
 #define PRINTF(f_, ...) fprintf(stderr, (f_), ##__VA_ARGS__)
 #else
