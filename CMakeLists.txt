@@ -100,13 +100,6 @@ list(APPEND pcx_DEPENDENCY_LIBS pthread)
 ####                                Compiler                                ####
 ################################################################################
 
-# Use project root as default include directory for the compiler
-include_directories(${PROJECT_SOURCE_DIR}/include/pcx)
-
-# Add the current binary directory for the generated config file 
-# (i.e. pcx_config.h)
-include_directories(${PROJECT_BINARY_DIR})
-
 # Compiler flags
 # 1. Support c++11 standard
 # 2. Generate position-independent code (PIC)
@@ -175,7 +168,8 @@ add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
 
 # Link to the 'pcx' library that was just created all the libraries
 # that are defined as dependencies
-target_link_libraries(pcx PRIVATE ${pcx_DEPENDENCY_LIBS}) # TODO: Consider using PUBLIC instead of PRIVATE
+# TODO: Consider using PUBLIC instead of PRIVATE
+target_link_libraries(pcx PRIVATE ${pcx_DEPENDENCY_LIBS}) 
 
 # Add "include" directory for all the header files of the library
 target_include_directories(pcx PUBLIC
