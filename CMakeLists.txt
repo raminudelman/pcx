@@ -15,7 +15,6 @@ set(PCX_VERSION
 
 # Build PCX with debug prints
 option(PCX_DEBUG "Build PCX with debug prints" OFF)
-option(DEBUG     "Build PCX with debug prints" OFF)
 
 # Build target options
 option(BUILD_TEST "Build test binary (requires gtest package)" OFF)
@@ -167,11 +166,9 @@ if(1)
   endforeach()
 endif()
 
-# Before configuring the file, make sure all '#define's will have PCX prefix 
-set(PCX_DEBUG ${DEBUG})
-
 # Write configuration header.
-configure_file(src/cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
+message(INFO " PCX_DEBUG=" ${PCX_DEBUG})
+configure_file(include/cmake/pcx_config.h.in "${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h")
 
 # Create a shared or static library
 add_library(pcx ${PCX_STATIC_OR_SHARED} ${PCX_SRCS})
@@ -219,9 +216,9 @@ if(PCX_INSTALL)
   install(TARGETS pcx 
           EXPORT PcxTargets
           DESTINATION ${PCX_INSTALL_PREFIX}/lib/pcx)
-  message(INFO " Installing " ${CMAKE_CURRENT_BINARY_DIR} "/pcx_config.h into: " ${PCX_INSTALL_PREFIX} "/include/pcx")
+  message(INFO " Installing " ${CMAKE_CURRENT_BINARY_DIR} "/pcx_config.h into: " ${PCX_INSTALL_PREFIX} "/include/pcx/include/pcx")
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pcx_config.h
-          DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx)
+          DESTINATION ${PCX_INSTALL_PREFIX}/include/pcx/include/pcx)
   foreach(HEADER ${PCX_HDRS})
     string(REGEX MATCH "(.*)[/\\]" DIR ${HEADER})
     string(REGEX REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "pcx" DIR ${DIR})
